@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v10 (雲端同步版)</title>
+    <title>工程執行紀錄系統 v10 (手動同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -21,7 +21,12 @@
     <div id="app" v-cloak class="max-w-md mx-auto bg-white min-h-screen shadow-lg flex flex-col">
         
         <header class="bg-slate-800 text-white p-4 sticky top-0 z-10 shadow-md flex justify-between items-center">
-            <h1 class="text-xl font-bold">🏗️ 現場工進系統 <span class="text-[10px] bg-green-500 px-2 py-0.5 rounded-full ml-2">雲端同步中</span></h1>
+            <h1 class="text-xl font-bold">🏗️ 現場工進系統</h1>
+            <button @click="syncData" :disabled="isSyncing" class="text-xs bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 px-3 py-1.5 rounded-lg shadow font-bold flex items-center transition-all active:scale-95">
+                <span v-if="isSyncing" class="animate-spin mr-1">🔄</span>
+                <span v-else class="mr-1">☁️</span> 
+                {{ isSyncing ? '同步中...' : (actionQueue.length > 0 ? '雲端同步存檔 (' + actionQueue.length + ')' : '雲端同步存檔') }}
+            </button>
         </header>
 
         <main class="p-4 flex-grow space-y-6">
@@ -59,16 +64,16 @@
             </div>
 
             <div class="space-y-4">
-                <div v-if="isLoading" class="text-center text-blue-500 py-6 text-sm font-bold animate-pulse">
-                    正在從雲端載入資料...
+                <div v-if="tasks.length === 0" class="text-center text-gray-400 py-6 text-sm">
+                    目前尚無排定工作或尚未同步。<br>請點擊右下角新增，或點擊上方「雲端同步存檔」載入。
                 </div>
 
-                <div v-else-if="tasks.length === 0" class="text-center text-gray-400 py-6 text-sm">
-                    目前尚無排定工作，請點擊右下角新增。
-                </div>
-
-                <div v-for="task in visibleTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-lg shadow-sm overflow-hidden border-l-4 transition-all duration-300" 
+                <div v-for="task in visibleTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-lg shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative" 
                      :class="getTaskCardStyle(task)">
+                    <div v-if="isUnsynced(task.id)" class="absolute top-0 right-0 bg-amber-400 text-white text-[8px] px-1.5 py-0.5 rounded-bl-md font-bold">
+                        未同步
+                    </div>
+
                     <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
                         <div class="flex justify-between items-start">
                             <div>
@@ -82,7 +87,7 @@
                                     <span class="font-bold text-gray-800">{{ task.mainCategory }}</span>
                                 </div>
                             </div>
-                            <div class="text-right text-xs">
+                            <div class="text-right text-xs pt-1">
                                 <div class="font-bold" :class="isPast(task.endDate) ? 'text-slate-500' : 'text-blue-600'">⏱ {{ task.days }} 工作天</div>
                                 <div class="text-gray-400 mt-1">{{ task.startDate }} 至 {{ task.endDate }}</div>
                                 <div class="text-gray-300 mt-1">{{ task.expanded ? '▲' : '▼' }}</div>
@@ -204,7 +209,7 @@
 
                     <button type="submit" class="w-full text-white font-black py-4 rounded-2xl shadow-lg mt-4 active:scale-95 transition-all"
                             :class="editingTaskId ? 'bg-amber-500 shadow-amber-200' : 'bg-blue-600 shadow-blue-200'">
-                        {{ editingTaskId ? '儲存修改至雲端' : '建立排程並同步' }}
+                        {{ editingTaskId ? '儲存修改 (暫存本機)' : '建立排程 (暫存本機)' }}
                     </button>
                 </form>
             </div>
@@ -214,10 +219,10 @@
     <script type="module">
         import { createApp } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         // 🚨🚨🚨 請將這裡替換成你在 Firebase 控制台取得的 config！ 🚨🚨🚨
-        const firebaseConfig = {
+          const firebaseConfig = {
   		apiKey: "AIzaSyBW2VjW1_mR7wbdAlAu3wTUOpHU6ZT62bo",
   		authDomain: "lftc-b0e9b.firebaseapp.com",
   		projectId: "lftc-b0e9b",
@@ -226,7 +231,6 @@
   		appId: "1:53143871980:web:ac12aad833cd8f61dce0c9"
 		};
 
-        // 初始化 Firebase 與資料庫連線
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const tasksCollection = collection(db, 'tasks');
@@ -240,7 +244,11 @@
                 '開盤結電': ['電線佈放', '接臨時電盤', '接正式電盤'],
                 '電話機佈放': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'],
                 '打線': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
-                '物料運送': ['設備進場', '線材搬運', '廢料清運']
+                '物料運送': ['設備進場', '線材搬運', '廢料清運'],
+                // === 新增項目 ===
+                '吊掛作業': ['吊車進場', '設備起降', '交維佈設', '人員淨空'], 
+                '測PIM': ['儀器校正', '負載測試', 'PIM量測', '報告產出']
+                // ==============
             },
             permitRules: [
                 { trigger: '機櫃定位', item: '重物移入申請' }
@@ -260,7 +268,8 @@
                 return {
                     config: CONFIG,
                     tasks: [],
-                    isLoading: true, // 新增：讀取狀態
+                    actionQueue: [], // 儲存尚未同步至雲端的操作
+                    isSyncing: false,
                     visibleLimit: 20,
                     showModal: false,
                     editingTaskId: null,
@@ -316,26 +325,25 @@
                 }
             },
             mounted() {
-                // 這裡就是魔法發生的位置：掛載一個 Firebase 即時監聽器
-                // 按照建立時間反排序，最新的在最上面
-                const q = query(tasksCollection, orderBy('createdAt', 'desc'));
-                onSnapshot(q, (snapshot) => {
-                    const fetchedTasks = [];
-                    snapshot.forEach((doc) => {
-                        fetchedTasks.push({
-                            id: doc.id, // Firestore 產生的唯一 ID
-                            ...doc.data(),
-                            expanded: false // 預設折疊
-                        });
-                    });
-                    this.tasks = fetchedTasks;
-                    this.isLoading = false;
-                    this.updateContractorColors();
-                });
+                // 讀取本機端暫存資料，不再自動監聽雲端 (移除 onSnapshot)
+                const savedTasks = localStorage.getItem('site_tasks');
+                if (savedTasks) this.tasks = JSON.parse(savedTasks);
+                
+                const savedQueue = localStorage.getItem('site_sync_queue');
+                if (savedQueue) this.actionQueue = JSON.parse(savedQueue);
+                
+                this.updateContractorColors();
             },
             methods: {
+                saveLocalState() {
+                    localStorage.setItem('site_tasks', JSON.stringify(this.tasks));
+                    localStorage.setItem('site_sync_queue', JSON.stringify(this.actionQueue));
+                    this.updateContractorColors();
+                },
+                isUnsynced(taskId) {
+                    return this.actionQueue.some(a => a.localId === taskId || a.id === taskId);
+                },
                 updateContractorColors() {
-                    // 自動為出現過的包商分配顏色
                     this.tasks.forEach(task => {
                         const name = task.contractor?.trim();
                         if (name && !this.contractorColorMap[name]) {
@@ -354,7 +362,7 @@
                     this.showModal = true;
                 },
                 openEditModal(task) {
-                    this.editingTaskId = task.id; // 現在 ID 是一串英數亂碼
+                    this.editingTaskId = task.id;
                     this.newTask = { ...task };
                     if (task.building === '倉庫') this.newTask.floor = '無';
                     this.showModal = true;
@@ -380,7 +388,8 @@
                     }
                     return new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
                 },
-                async saveTask() {
+                // 儲存改為先暫存至本機
+                saveTask() {
                     const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days, this.newTask.includeSaturday, this.newTask.includeSunday);
                     
                     let permits = ['一般施工單', '變電站申請', '離架申請'];
@@ -408,19 +417,70 @@
                         permits: permits,
                     };
 
-                    try {
-                        if (this.editingTaskId) {
-                            // 更新現有資料到 Firestore
-                            const taskRef = doc(db, 'tasks', this.editingTaskId);
-                            await updateDoc(taskRef, formattedData);
-                        } else {
-                            // 新增資料到 Firestore (加上建立時間)
-                            formattedData.createdAt = serverTimestamp();
-                            await addDoc(tasksCollection, formattedData);
+                    if (this.editingTaskId) {
+                        // 修改本地現有紀錄
+                        const index = this.tasks.findIndex(t => t.id === this.editingTaskId);
+                        if (index !== -1) {
+                            this.tasks[index] = { ...this.tasks[index], ...formattedData };
+                            
+                            // 判斷是否為尚未同步的本地紀錄
+                            const existingAction = this.actionQueue.find(a => a.type === 'add' && a.localId === this.editingTaskId);
+                            if (existingAction) {
+                                existingAction.payload = formattedData; // 更新待新增的內容
+                            } else {
+                                this.actionQueue.push({ type: 'update', id: this.editingTaskId, payload: formattedData });
+                            }
                         }
-                        this.showModal = false;
+                    } else {
+                        // 建立新的本地紀錄
+                        const localId = 'local-' + Date.now();
+                        const newTask = { id: localId, ...formattedData, expanded: false };
+                        this.tasks.unshift(newTask);
+                        this.actionQueue.push({ type: 'add', localId: localId, payload: formattedData });
+                    }
+                    
+                    this.saveLocalState();
+                    this.showModal = false;
+                },
+                // 雲端同步核心邏輯
+                async syncData() {
+                    this.isSyncing = true;
+                    try {
+                        // 1. 處理佇列中的本地變更，推送到 Firebase
+                        for (const action of this.actionQueue) {
+                            if (action.type === 'add') {
+                                action.payload.createdAt = serverTimestamp();
+                                await addDoc(tasksCollection, action.payload);
+                            } else if (action.type === 'update') {
+                                const taskRef = doc(db, 'tasks', action.id);
+                                await updateDoc(taskRef, action.payload);
+                            } else if (action.type === 'delete') {
+                                await deleteDoc(doc(db, 'tasks', action.id));
+                            }
+                        }
+                        
+                        // 清空佇列
+                        this.actionQueue = [];
+                        
+                        // 2. 重新從 Firebase 抓取最新資料
+                        const q = query(tasksCollection, orderBy('createdAt', 'desc'));
+                        const snapshot = await getDocs(q);
+                        const fetchedTasks = [];
+                        snapshot.forEach((doc) => {
+                            fetchedTasks.push({
+                                id: doc.id,
+                                ...doc.data(),
+                                expanded: false
+                            });
+                        });
+                        
+                        this.tasks = fetchedTasks;
+                        this.saveLocalState();
+                        
                     } catch (error) {
-                        alert("儲存失敗，請檢查網路連線：" + error.message);
+                        alert("同步失敗，請檢查網路連線：" + error.message);
+                    } finally {
+                        this.isSyncing = false;
                     }
                 },
                 scrollToTask(task) {
@@ -447,13 +507,20 @@
                     return 'bg-white ' + this.getTaskBorderColor(task.mainCategory);
                 },
                 loadMore() { this.visibleLimit += 10; },
-                async confirmDelete(task) {
-                    if (confirm(`確定要從雲端刪除「${task.location} - ${task.mainCategory}」嗎？這會同步刪除所有人的畫面紀錄。`)) {
-                        try {
-                            await deleteDoc(doc(db, 'tasks', task.id));
-                        } catch (error) {
-                            alert("刪除失敗：" + error.message);
+                // 刪除也改為先暫存本機
+                confirmDelete(task) {
+                    if (confirm(`確定要刪除「${task.location} - ${task.mainCategory}」嗎？刪除後請記得點擊「雲端同步存檔」才會在伺服器端生效。`)) {
+                        this.tasks = this.tasks.filter(t => t.id !== task.id);
+                        
+                        // 若為尚未同步的本地紀錄，直接從 Queue 移除
+                        const addActionIndex = this.actionQueue.findIndex(a => a.type === 'add' && a.localId === task.id);
+                        if (addActionIndex !== -1) {
+                            this.actionQueue.splice(addActionIndex, 1);
+                        } else {
+                            this.actionQueue.push({ type: 'delete', id: task.id });
                         }
+                        
+                        this.saveLocalState();
                     }
                 },
                 changeMonth(offset) {
@@ -470,7 +537,8 @@
                     const map = {
                         '天線安裝': 'border-rose-500', '機櫃安裝': 'border-blue-600',
                         '開盤結電': 'border-amber-500', '電話機佈放': 'border-emerald-600',
-                        '打線': 'border-purple-500', '物料運送': 'border-slate-700'
+                        '打線': 'border-purple-500', '物料運送': 'border-slate-700',
+                        '吊掛作業': 'border-orange-500', '測PIM': 'border-cyan-500'
                     };
                     return map[cat] || 'border-slate-500';
                 }
