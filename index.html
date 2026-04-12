@@ -8,9 +8,11 @@
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* 跳轉時的閃爍動畫 */
         .highlight-flash { animation: flash 1.5s ease-out; }
         @keyframes flash {
-            0% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.5); }
+            0% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.8); transform: scale(1.02); }
+            50% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.4); transform: scale(1.0); }
             100% { box-shadow: 0 0 0 0px rgba(59, 130, 246, 0); }
         }
         /* 避免 Vue 載入前的閃爍 */
@@ -48,8 +50,8 @@
                         <div class="mt-1 space-y-1">
                             <div v-for="task in day.tasks" 
                                  @click.stop="scrollToTask(task)"
-                                 class="text-[9px] py-0.5 px-1 rounded-sm truncate text-white font-bold transition-transform active:scale-95" 
-                                 :class="(day.dateStr < todayStr || isPast(task.endDate)) ? 'bg-slate-300 opacity-80 cursor-default' : (getContractorColor(task.contractor) + ' cursor-pointer hover:opacity-90')">
+                                 class="text-[9px] py-0.5 px-1 rounded-sm truncate text-white font-bold transition-transform active:scale-95 cursor-pointer hover:opacity-90" 
+                                 :class="(day.dateStr < todayStr || isPast(task.endDate)) ? 'bg-slate-400' : getContractorColor(task.contractor)">
                                 {{ task.contractor || '未指定' }}: {{ task.mainCategory }}
                             </div>
                         </div>
@@ -217,12 +219,12 @@
     </div>
 
     <script type="module">
-        import { createApp } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+        import { createApp, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         // 🚨🚨🚨 請將這裡替換成你在 Firebase 控制台取得的 config！ 🚨🚨🚨
-          const firebaseConfig = {
+            const firebaseConfig = {
   		apiKey: "AIzaSyBW2VjW1_mR7wbdAlAu3wTUOpHU6ZT62bo",
   		authDomain: "lftc-b0e9b.firebaseapp.com",
   		projectId: "lftc-b0e9b",
@@ -245,10 +247,8 @@
                 '電話機佈放': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'],
                 '打線': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
                 '物料運送': ['設備進場', '線材搬運', '廢料清運'],
-                // === 新增項目 ===
                 '吊掛作業': ['吊車進場', '設備起降', '交維佈設', '人員淨空'], 
                 '測PIM': ['儀器校正', '負載測試', 'PIM量測', '報告產出']
-                // ==============
             },
             permitRules: [
                 { trigger: '機櫃定位', item: '重物移入申請' }
@@ -268,7 +268,7 @@
                 return {
                     config: CONFIG,
                     tasks: [],
-                    actionQueue: [], // 儲存尚未同步至雲端的操作
+                    actionQueue: [], 
                     isSyncing: false,
                     visibleLimit: 20,
                     showModal: false,
@@ -325,7 +325,6 @@
                 }
             },
             mounted() {
-                // 讀取本機端暫存資料，不再自動監聽雲端 (移除 onSnapshot)
                 const savedTasks = localStorage.getItem('site_tasks');
                 if (savedTasks) this.tasks = JSON.parse(savedTasks);
                 
@@ -388,7 +387,6 @@
                     }
                     return new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
                 },
-                // 儲存改為先暫存至本機
                 saveTask() {
                     const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days, this.newTask.includeSaturday, this.newTask.includeSunday);
                     
@@ -418,21 +416,18 @@
                     };
 
                     if (this.editingTaskId) {
-                        // 修改本地現有紀錄
                         const index = this.tasks.findIndex(t => t.id === this.editingTaskId);
                         if (index !== -1) {
                             this.tasks[index] = { ...this.tasks[index], ...formattedData };
                             
-                            // 判斷是否為尚未同步的本地紀錄
                             const existingAction = this.actionQueue.find(a => a.type === 'add' && a.localId === this.editingTaskId);
                             if (existingAction) {
-                                existingAction.payload = formattedData; // 更新待新增的內容
+                                existingAction.payload = formattedData; 
                             } else {
                                 this.actionQueue.push({ type: 'update', id: this.editingTaskId, payload: formattedData });
                             }
                         }
                     } else {
-                        // 建立新的本地紀錄
                         const localId = 'local-' + Date.now();
                         const newTask = { id: localId, ...formattedData, expanded: false };
                         this.tasks.unshift(newTask);
@@ -442,11 +437,9 @@
                     this.saveLocalState();
                     this.showModal = false;
                 },
-                // 雲端同步核心邏輯
                 async syncData() {
                     this.isSyncing = true;
                     try {
-                        // 1. 處理佇列中的本地變更，推送到 Firebase
                         for (const action of this.actionQueue) {
                             if (action.type === 'add') {
                                 action.payload.createdAt = serverTimestamp();
@@ -459,10 +452,8 @@
                             }
                         }
                         
-                        // 清空佇列
                         this.actionQueue = [];
                         
-                        // 2. 重新從 Firebase 抓取最新資料
                         const q = query(tasksCollection, orderBy('createdAt', 'desc'));
                         const snapshot = await getDocs(q);
                         const fetchedTasks = [];
@@ -483,36 +474,63 @@
                         this.isSyncing = false;
                     }
                 },
+                
+                // ======== 優化過後的滾動跳轉功能 (已加入過期一個月阻擋機制) ========
                 scrollToTask(task) {
-                    if (this.isPast(task.endDate)) return; 
-                    const taskIndex = this.tasks.findIndex(t => t.id === task.id);
-                    if (taskIndex >= this.visibleLimit) {
-                        this.visibleLimit = Math.ceil((taskIndex + 1) / 10) * 10;
+                    // 【新增邏輯】判斷是否完工已超過一個月
+                    const taskEndDate = new Date(task.endDate);
+                    const oneMonthAgo = new Date(this.todayStr);
+                    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+                    // 如果 endDate 小於一個月前的日期，就阻斷跳轉
+                    if (taskEndDate < oneMonthAgo) {
+                        alert('此工項已完工超過一個月，歷史紀錄不再提供點擊跳轉功能。');
+                        return;
                     }
-                    Vue.nextTick(() => {
+
+                    // 1. 找到該項目在列表中的位置
+                    const taskIndex = this.tasks.findIndex(t => t.id === task.id);
+                    if (taskIndex === -1) return; // 防呆處理
+
+                    // 2. 如果該項目藏在「載入更多」下方，則自動增加顯示數量讓它出現
+                    if (taskIndex >= this.visibleLimit) {
+                        this.visibleLimit = taskIndex + 5;
+                    }
+
+                    // 3. 等待 Vue 完成畫面渲染後執行滾動
+                    nextTick(() => {
                         const element = document.getElementById('task-' + task.id);
                         if (element) {
+                            // 自動將該工項卡片展開
                             task.expanded = true; 
-                            const y = element.getBoundingClientRect().top + window.pageYOffset - 80;
-                            window.scrollTo({ top: y, behavior: 'smooth' });
+                            
+                            // 計算正確的滾動高度 (扣掉上方 80px 的 Header 避免被遮擋)
+                            const headerOffset = 80;
+                            const elementPosition = element.getBoundingClientRect().top;
+                            const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                            
+                            // 執行平滑滾動
+                            window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+
+                            // 加入強調閃爍動畫
                             element.classList.remove('highlight-flash');
-                            void element.offsetWidth; 
+                            void element.offsetWidth; // 觸發瀏覽器重繪
                             element.classList.add('highlight-flash');
                         }
                     });
                 },
+                // ========================================
+
                 isPast(dateStr) { return dateStr < this.todayStr; },
                 getTaskCardStyle(task) {
                     if (this.isPast(task.endDate)) return 'bg-slate-50 border-slate-300 opacity-60 grayscale';
                     return 'bg-white ' + this.getTaskBorderColor(task.mainCategory);
                 },
                 loadMore() { this.visibleLimit += 10; },
-                // 刪除也改為先暫存本機
                 confirmDelete(task) {
                     if (confirm(`確定要刪除「${task.location} - ${task.mainCategory}」嗎？刪除後請記得點擊「雲端同步存檔」才會在伺服器端生效。`)) {
                         this.tasks = this.tasks.filter(t => t.id !== task.id);
                         
-                        // 若為尚未同步的本地紀錄，直接從 Queue 移除
                         const addActionIndex = this.actionQueue.findIndex(a => a.type === 'add' && a.localId === task.id);
                         if (addActionIndex !== -1) {
                             this.actionQueue.splice(addActionIndex, 1);
