@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v11 (功能升級版)</title>
+    <title>工程執行紀錄系統 v12 (優化版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -17,6 +17,12 @@
         }
         /* 避免 Vue 載入前的閃爍 */
         [v-cloak] { display: none; }
+        
+        /* 移除 datalist 預設的下拉箭頭 (依各家瀏覽器支援度不同) */
+        input::-webkit-calendar-picker-indicator {
+            opacity: 1;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans pb-20 scroll-smooth">
@@ -151,7 +157,7 @@
                 <form @submit.prevent="saveTask" class="space-y-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">開始日期</label>
-                        <input v-model="newTask.startDate" type="date" required class="w-full bg-gray-50 border-0 rounded-xl p-3 text-sm mb-2">
+                        <input v-model="newTask.startDate" type="date" required class="w-full bg-gray-50 border-0 rounded-xl p-3 text-base mb-2">
                         <div class="flex items-center gap-4 bg-gray-50 p-2 rounded-lg">
                             <label class="flex items-center cursor-pointer">
                                 <input type="checkbox" v-model="newTask.includeSaturday" class="w-4 h-4 rounded border-gray-300 text-blue-600">
@@ -167,7 +173,7 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-bold text-gray-500 mb-1">施工大樓</label>
-                            <select v-model="newTask.building" @change="handleBuildingChange" class="w-full bg-gray-50 border-0 rounded-xl p-3 text-sm">
+                            <select v-model="newTask.building" @change="handleBuildingChange" class="w-full bg-gray-50 border-0 rounded-xl p-3 text-base">
                                 <option v-for="b in config.buildings" :value="b">{{ b }}</option>
                             </select>
                         </div>
@@ -176,7 +182,7 @@
                             <select v-model="newTask.floor" 
                                     :required="newTask.building !== '倉庫'"
                                     :disabled="newTask.building === '倉庫'"
-                                    class="w-full bg-gray-50 border-0 rounded-xl p-3 text-sm disabled:opacity-50">
+                                    class="w-full bg-gray-50 border-0 rounded-xl p-3 text-base disabled:opacity-50">
                                 <option value="" disabled v-if="newTask.building !== '倉庫'">請選擇...</option>
                                 <option v-if="newTask.building === '倉庫'" value="無">無</option>
                                 <option v-for="f in config.floors" :key="f" :value="f">{{ f }}</option>
@@ -186,16 +192,16 @@
 
                     <div class="bg-blue-50 p-3 rounded-xl border border-blue-100">
                         <label class="block text-xs font-bold text-blue-800 mb-1">負責班組 / 包商</label>
-                        <input list="contractors-list" v-model="newTask.contractor" placeholder="選擇或輸入包商名稱" required class="w-full bg-white border-0 rounded-lg p-3 text-sm mb-3 shadow-sm">
+                        <input list="contractors-list" v-model="newTask.contractor" placeholder="請選擇或輸入" required class="w-full bg-white border-0 rounded-lg p-3 text-base mb-3 shadow-sm placeholder:text-sm">
                         <datalist id="contractors-list">
                             <option v-for="c in config.contractors" :value="c"></option>
                         </datalist>
 
                         <label class="block text-xs font-bold text-blue-800 mb-1">管理職</label>
                         <div v-for="(mgr, index) in newTask.managers" :key="index" class="flex items-center gap-2 mb-2">
-                            <input list="managers-list" v-model="newTask.managers[index]" placeholder="選擇或輸入管理職" required class="flex-grow bg-white border-0 rounded-lg p-3 text-sm shadow-sm">
+                            <input list="managers-list" v-model="newTask.managers[index]" placeholder="請選擇或輸入" required class="flex-grow bg-white border-0 rounded-lg p-3 text-base shadow-sm placeholder:text-sm">
                             <button type="button" v-if="newTask.managers.length > 1" @click="newTask.managers.splice(index, 1)" class="bg-red-100 text-red-600 w-10 h-10 rounded-lg font-black shrink-0 hover:bg-red-200">－</button>
-                            <button type="button" v-if="index === newTask.managers.length - 1" @click="newTask.managers.push('N/A')" class="bg-blue-200 text-blue-700 w-10 h-10 rounded-lg font-black shrink-0 hover:bg-blue-300">＋</button>
+                            <button type="button" v-if="index === newTask.managers.length - 1" @click="newTask.managers.push('')" class="bg-blue-200 text-blue-700 w-10 h-10 rounded-lg font-black shrink-0 hover:bg-blue-300">＋</button>
                         </div>
                         <datalist id="managers-list">
                             <option v-for="m in config.managers" :value="m"></option>
@@ -205,13 +211,13 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-bold text-gray-500 mb-1">預估工期 (工作天)</label>
-                            <select v-model="newTask.days" required class="w-full bg-gray-50 border-0 rounded-xl p-3 text-sm">
+                            <select v-model="newTask.days" required class="w-full bg-gray-50 border-0 rounded-xl p-3 text-base">
                                 <option v-for="n in 7" :key="n" :value="n">{{ n }} 天</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-500 mb-1">主要工項</label>
-                            <select v-model="newTask.mainCategory" @change="handleCategoryChange" required class="w-full bg-gray-50 border-0 rounded-xl p-3 text-sm">
+                            <select v-model="newTask.mainCategory" @change="handleCategoryChange" required class="w-full bg-gray-50 border-0 rounded-xl p-3 text-base">
                                 <option value="" disabled>請選擇...</option>
                                 <option v-for="(subItems, category) in config.categories" :value="category">{{ category }}</option>
                             </select>
@@ -272,7 +278,7 @@
             categories: {
                 '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'],
                 '機櫃安裝': ['機櫃定位', '機櫃下線槽安裝', '設備安裝'],
-                '開盤送電': ['電線佈放', '接臨時電盤', '接正式電盤', '結線未送電'], // 修改項目與新增細項
+                '開盤送電': ['電線佈放', '接臨時電盤', '接正式電盤', '結線未送電'], 
                 '電話機佈放': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'],
                 '打線': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
                 '物料運送': ['設備進場', '線材搬運', '廢料清運'],
@@ -303,7 +309,7 @@
                         building: 'FAB',
                         floor: '',
                         contractor: '',
-                        managers: ['N/A'], // 陣列格式支援多個管理職
+                        managers: [''], // 💡 重點修正：預設為空字串，一開始就會是空白的
                         includeSaturday: false,
                         includeSunday: false,
                         mainCategory: '',
@@ -313,15 +319,13 @@
                 }
             },
             computed: {
-                // 自動決定各分類可勾選的申請單 (需求 2, 3, 4)
                 availablePermits() {
                     if (!this.newTask.mainCategory) return [];
-                    if (this.newTask.mainCategory === '打線') return []; // 打線不需申請單
-                    if (this.newTask.mainCategory === '物料運送') return ['車輛進出放行單', '物料進出放行單']; // 物料專屬
-                    return ['一般施工單', '變電站申請', '離架申請', '天花板申請', '重物移入申請']; // 其他通用
+                    if (this.newTask.mainCategory === '打線') return []; 
+                    if (this.newTask.mainCategory === '物料運送') return ['車輛進出放行單', '物料進出放行單']; 
+                    return ['一般施工單', '變電站申請', '離架申請', '天花板申請', '重物移入申請']; 
                 },
                 
-                // 排序主列表 (需求 9)
                 sortedTasks() {
                     let active = [];
                     let past = [];
@@ -331,7 +335,6 @@
                         else active.push(t);
                     });
                     
-                    // 進行中：以包商為主，次要排序時間 (以 startDate 為準)
                     active.sort((a, b) => {
                         let cA = a.contractor || '';
                         let cB = b.contractor || '';
@@ -339,7 +342,6 @@
                         return a.startDate.localeCompare(b.startDate);
                     });
                     
-                    // 已過期(隱藏後)：純用時間排序 (以 endDate 越近的排越上面)
                     past.sort((a, b) => b.endDate.localeCompare(a.endDate));
                     
                     return [...active, ...past];
@@ -348,7 +350,6 @@
                     return this.sortedTasks.slice(0, this.visibleLimit);
                 },
 
-                // 行事曆資料 (包含分組與排序 需求 8)
                 calendarDays() {
                     const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
                     const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
@@ -368,7 +369,6 @@
                             return true; 
                         });
 
-                        // 在行事曆中，強制相同包商與相同的 Task ID 綁在一起，以確保視覺連貫性
                         dailyTasks.sort((a, b) => {
                             let cA = a.contractor || '';
                             let cB = b.contractor || '';
@@ -404,7 +404,6 @@
                     return this.actionQueue.some(a => a.localId === taskId || a.id === taskId);
                 },
                 
-                // 固定顏色地圖 (需求 10)
                 getContractorColor(contractor) {
                     const fixedMap = {
                         '和億': 'bg-blue-600',
@@ -417,7 +416,6 @@
                     let name = contractor.trim();
                     if (fixedMap[name]) return fixedMap[name];
                     
-                    // 如果輸入不在上述五個，用名稱計算一個穩定的替代顏色
                     const fallbackColors = ['bg-cyan-600', 'bg-pink-600', 'bg-indigo-600', 'bg-teal-600'];
                     let hash = 0;
                     for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
@@ -425,16 +423,13 @@
                 },
                 
                 getTaskBorderColor(contractor) {
-                    // 將邊框顏色與包商顏色同步
                     const baseColor = this.getContractorColor(contractor);
                     return baseColor.replace('bg-', 'border-');
                 },
 
-                // 行事曆方塊樣式處理 (需求 7: 連續方塊、灰階處理)
                 getCalendarTaskStyles(task, dateStr) {
                     let classes = [this.getContractorColor(task.contractor)];
                     
-                    // 已經過去的時間一律變灰階
                     if (dateStr < this.todayStr) {
                         classes.push('grayscale opacity-60');
                     }
@@ -442,7 +437,6 @@
                     let isStart = dateStr === task.startDate;
                     let isEnd = dateStr === task.endDate;
                     
-                    // 判斷是否去圓角以達到連續方塊的視覺效果
                     if (isStart && isEnd) {
                         classes.push('rounded-sm mx-0');
                     } else if (isStart) {
@@ -460,7 +454,8 @@
                     this.editingTaskId = null;
                     this.newTask = {
                         startDate: this.todayStr, days: 1, building: 'FAB', floor: '',
-                        contractor: '', managers: ['N/A'], includeSaturday: false, includeSunday: false,
+                        contractor: '', managers: [''], // 💡 重點修正：預設為空字串
+                        includeSaturday: false, includeSunday: false,
                         mainCategory: '', subItems: [], permits: []
                     };
                     this.showModal = true;
@@ -469,7 +464,8 @@
                     this.editingTaskId = task.id;
                     this.newTask = { 
                         ...task, 
-                        managers: task.managers && task.managers.length ? [...task.managers] : ['N/A'],
+                        // 💡 修正：如果原本有經理，就把經理帶過來，否則給一個空字串讓使用者選
+                        managers: task.managers && task.managers.length > 0 ? [...task.managers] : [''],
                         permits: task.permits ? [...task.permits] : []
                     };
                     if (task.building === '倉庫') this.newTask.floor = '無';
@@ -480,10 +476,8 @@
                     else if (this.newTask.floor === '無') this.newTask.floor = '';
                 },
                 handleCategoryChange() {
-                    // 切換主分類時，清空勾選項目
                     this.newTask.subItems = [];
                     this.newTask.permits = [];
-                    // 需求 3: 若選物料運送，預設幫他勾選放行單方便作業
                     if (this.newTask.mainCategory === '物料運送') {
                         this.newTask.permits = ['車輛進出放行單', '物料進出放行單'];
                     }
@@ -514,7 +508,7 @@
                         building: this.newTask.building,
                         floor: this.newTask.floor,
                         contractor: this.newTask.contractor.trim(),
-                        managers: [...this.newTask.managers.filter(m => m.trim() !== '')],
+                        managers: [...this.newTask.managers.filter(m => m.trim() !== '')], // 💡 過濾掉空字串
                         includeSaturday: this.newTask.includeSaturday,
                         includeSunday: this.newTask.includeSunday,
                         mainCategory: this.newTask.mainCategory,
