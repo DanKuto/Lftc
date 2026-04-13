@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v12 (優化版)</title>
+    <title>工程執行紀錄系統 v13 (支援排序切換)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -65,13 +65,26 @@
                 </div>
             </div>
 
-            <div class="flex items-center space-x-2">
-                <hr class="flex-grow border-slate-200">
-                <span class="text-xs font-bold text-slate-400">工項紀錄列表</span>
-                <hr class="flex-grow border-slate-200">
+            <div>
+                <div class="flex justify-between items-end mb-2">
+                    <span class="text-xs font-bold text-slate-400">工項紀錄列表</span>
+                    <div class="flex bg-gray-200 rounded-lg p-0.5 shadow-inner">
+                        <button @click="sortBy = 'contractor'" 
+                                class="text-[10px] px-3 py-1 rounded-md font-bold transition-all duration-200 ease-in-out"
+                                :class="sortBy === 'contractor' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+                            按包商排序
+                        </button>
+                        <button @click="sortBy = 'time'" 
+                                class="text-[10px] px-3 py-1 rounded-md font-bold transition-all duration-200 ease-in-out"
+                                :class="sortBy === 'time' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+                            按時間排序
+                        </button>
+                    </div>
+                </div>
+                <hr class="border-slate-200">
             </div>
 
-            <div class="space-y-4">
+            <div class="space-y-4 mt-2">
                 <div v-if="tasks.length === 0" class="text-center text-gray-400 py-6 text-sm">
                     目前尚無排定工作或尚未同步。<br>請點擊右下角新增，或點擊上方「雲端同步存檔」載入。
                 </div>
@@ -303,13 +316,14 @@
                     currentYear: today.getFullYear(),
                     currentMonth: today.getMonth(),
                     todayStr: todayStr,
+                    sortBy: 'contractor', // 💡 新增：目前的排序狀態 ('contractor' 或 'time')
                     newTask: {
                         startDate: todayStr,
                         days: 1, 
                         building: 'FAB',
                         floor: '',
                         contractor: '',
-                        managers: [''], // 💡 重點修正：預設為空字串，一開始就會是空白的
+                        managers: [''], // 預設為空字串
                         includeSaturday: false,
                         includeSunday: false,
                         mainCategory: '',
@@ -335,13 +349,21 @@
                         else active.push(t);
                     });
                     
+                    // 💡 修正：根據 sortBy 變數決定進行中工項的排序方式
                     active.sort((a, b) => {
-                        let cA = a.contractor || '';
-                        let cB = b.contractor || '';
-                        if (cA !== cB) return cA.localeCompare(cB);
-                        return a.startDate.localeCompare(b.startDate);
+                        if (this.sortBy === 'contractor') {
+                            // 先按包商，再按時間
+                            let cA = a.contractor || '';
+                            let cB = b.contractor || '';
+                            if (cA !== cB) return cA.localeCompare(cB);
+                            return a.startDate.localeCompare(b.startDate);
+                        } else {
+                            // 純按時間 (startDate 越早排越上面)
+                            return a.startDate.localeCompare(b.startDate);
+                        }
                     });
                     
+                    // 已過期的維持固定：純用結束時間排序 (endDate 越近的排越上面)
                     past.sort((a, b) => b.endDate.localeCompare(a.endDate));
                     
                     return [...active, ...past];
@@ -454,7 +476,7 @@
                     this.editingTaskId = null;
                     this.newTask = {
                         startDate: this.todayStr, days: 1, building: 'FAB', floor: '',
-                        contractor: '', managers: [''], // 💡 重點修正：預設為空字串
+                        contractor: '', managers: [''], // 預設為空字串
                         includeSaturday: false, includeSunday: false,
                         mainCategory: '', subItems: [], permits: []
                     };
@@ -464,7 +486,7 @@
                     this.editingTaskId = task.id;
                     this.newTask = { 
                         ...task, 
-                        // 💡 修正：如果原本有經理，就把經理帶過來，否則給一個空字串讓使用者選
+                        // 如果原本有經理，就把經理帶過來，否則給一個空字串讓使用者選
                         managers: task.managers && task.managers.length > 0 ? [...task.managers] : [''],
                         permits: task.permits ? [...task.permits] : []
                     };
@@ -508,7 +530,7 @@
                         building: this.newTask.building,
                         floor: this.newTask.floor,
                         contractor: this.newTask.contractor.trim(),
-                        managers: [...this.newTask.managers.filter(m => m.trim() !== '')], // 💡 過濾掉空字串
+                        managers: [...this.newTask.managers.filter(m => m.trim() !== '')], // 過濾掉空字串
                         includeSaturday: this.newTask.includeSaturday,
                         includeSunday: this.newTask.includeSunday,
                         mainCategory: this.newTask.mainCategory,
