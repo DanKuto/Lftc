@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v13 (支援排序切換)</title>
+    <title>工程執行紀錄系統 v14 (多地點與完工管理版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -18,7 +18,6 @@
         /* 避免 Vue 載入前的閃爍 */
         [v-cloak] { display: none; }
         
-        /* 移除 datalist 預設的下拉箭頭 (依各家瀏覽器支援度不同) */
         input::-webkit-calendar-picker-indicator {
             opacity: 1;
             cursor: pointer;
@@ -67,7 +66,7 @@
 
             <div>
                 <div class="flex justify-between items-end mb-2">
-                    <span class="text-xs font-bold text-slate-400">工項紀錄列表</span>
+                    <span class="text-xs font-bold text-slate-400">進行中工項</span>
                     <div class="flex bg-gray-200 rounded-lg p-0.5 shadow-inner">
                         <button @click="sortBy = 'contractor'" 
                                 class="text-[10px] px-3 py-1 rounded-md font-bold transition-all duration-200 ease-in-out"
@@ -85,76 +84,142 @@
             </div>
 
             <div class="space-y-4 mt-2">
-                <div v-if="tasks.length === 0" class="text-center text-gray-400 py-6 text-sm">
-                    目前尚無排定工作或尚未同步。<br>請點擊右下角新增，或點擊上方「雲端同步存檔」載入。
+                <div v-if="activeTasks.length === 0" class="text-center text-gray-400 py-6 text-sm">
+                    目前尚無進行中工作。
                 </div>
 
-                <div v-for="task in visibleTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-lg shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative" 
-                     :class="getTaskCardStyle(task)">
-                    <div v-if="isUnsynced(task.id)" class="absolute top-0 right-0 bg-amber-400 text-white text-[8px] px-1.5 py-0.5 rounded-bl-md font-bold">
-                        未同步
-                    </div>
+                <template v-for="(task, index) in activeTasks" :key="task.id">
+                    <div :id="'task-' + task.id" class="border rounded-lg shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-white border-blue-500">
+                        
+                        <div v-if="isUnsynced(task.id)" class="absolute top-0 right-0 bg-amber-400 text-white text-[8px] px-1.5 py-0.5 rounded-bl-md font-bold">未同步</div>
 
-                    <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white" 
-                                     :class="isPast(task.endDate) ? 'bg-slate-400' : getContractorColor(task.contractor)">
-                                    {{ task.contractor || '未指定班組' }}
-                                    <span v-if="isPast(task.endDate)" class="ml-1 font-normal">(已完工)</span>
+                        <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-grow">
+                                    <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white" :class="getContractorColor(task.contractor)">
+                                        {{ task.contractor || '未指定班組' }}
+                                    </div>
+                                    <div class="mt-1 flex items-center gap-1 flex-wrap">
+                                        <span v-for="loc in getLocations(task)" class="bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                            <span :class="loc.phase === 'P1' ? 'text-amber-600' : 'text-blue-600'">{{ loc.phase }}</span>
+                                            <span class="mx-1 text-slate-300">|</span> 
+                                            {{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}
+                                        </span>
+                                    </div>
+                                    <div class="mt-1.5 font-black text-gray-800 tracking-wide">{{ task.mainCategory }}</div>
                                 </div>
-                                <div class="mt-1">
-                                    <span class="bg-slate-100 text-slate-700 text-xs font-bold px-2 py-1 rounded mr-2">{{ task.location }}</span>
-                                    <span class="font-bold text-gray-800">{{ task.mainCategory }}</span>
+                                <div class="text-right text-xs pt-1 shrink-0 flex flex-col items-end">
+                                    <div class="font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded">⏱ {{ task.days }} 工作天</div>
+                                    <div class="text-gray-400 mt-1 font-medium">{{ task.startDate }} 至 {{ task.endDate }}</div>
+                                    <div class="text-slate-500 mt-1.5 font-bold truncate max-w-[100px]" title="管理職">
+                                        👤 {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="text-right text-xs pt-1">
-                                <div class="font-bold" :class="isPast(task.endDate) ? 'text-slate-500' : 'text-blue-600'">⏱ {{ task.days }} 工作天</div>
-                                <div class="text-gray-400 mt-1">{{ task.startDate }} 至 {{ task.endDate }}</div>
-                                <div class="text-gray-300 mt-1">{{ task.expanded ? '▲' : '▼' }}</div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div v-show="task.expanded" class="p-3 border-t text-sm" :class="isPast(task.endDate) ? 'bg-slate-100 border-slate-200' : 'bg-gray-50 border-gray-100'">
-                        <div class="grid grid-cols-2 gap-2 mb-3 text-xs">
-                            <div><span class="text-gray-500">樓層：</span>{{ task.floor }}</div>
-                            <div>
+                        
+                        <div v-show="task.expanded" class="p-3 border-t text-sm bg-gray-50 border-gray-100">
+                            <div class="mb-3 text-xs">
                                 <span class="text-gray-500">假日施工：</span>
                                 <span v-if="task.includeSaturday && task.includeSunday" class="text-red-500 font-bold">六、日</span>
                                 <span v-else-if="task.includeSaturday" class="text-red-500 font-bold">週六</span>
                                 <span v-else-if="task.includeSunday" class="text-red-500 font-bold">週日</span>
                                 <span v-else>無</span>
                             </div>
-                        </div>
+                            
+                            <div class="flex flex-wrap gap-1 mb-3">
+                                <span v-for="sub in task.subItems" class="bg-white border text-gray-600 text-[10px] px-2 py-0.5 rounded shadow-sm">{{ sub }}</span>
+                            </div>
+                            
+                            <div class="p-2 rounded text-xs font-bold bg-amber-50 text-amber-800 border border-amber-100">
+                                📑 應辦：{{ task.permits && task.permits.length > 0 ? task.permits.join(', ') : '無' }}
+                            </div>
 
-                        <div class="mb-3 text-xs">
-                            <span class="text-gray-500">管理職：</span>
-                            <span class="font-bold text-gray-700">{{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}</span>
+                            <div class="mt-4 flex justify-between items-center border-t border-gray-200 pt-3">
+                                <div>
+                                    <button v-if="canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" 
+                                            class="text-[11px] px-4 py-2 rounded-lg font-black shadow-sm transition-all active:scale-95"
+                                            :class="task.isCompleted ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200'">
+                                        {{ task.isCompleted ? '↩️ 取消完工 (返工)' : '✅ 標記已完工' }}
+                                    </button>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button @click.stop="openEditModal(task)" class="flex items-center text-[10px] text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded transition-colors font-bold">
+                                        修改
+                                    </button>
+                                    <button @click.stop="confirmDelete(task)" class="flex items-center text-[10px] text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded transition-colors font-bold">
+                                        刪除
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <div class="flex flex-wrap gap-1 mb-3">
-                            <span v-for="sub in task.subItems" class="bg-white border text-gray-600 text-[10px] px-2 py-0.5 rounded">{{ sub }}</span>
-                        </div>
-                        
-                        <div class="p-2 rounded text-xs font-medium" :class="isPast(task.endDate) ? 'bg-slate-200 text-slate-600' : 'bg-yellow-100 text-yellow-900'">
-                            📑 應辦：{{ task.permits && task.permits.length > 0 ? task.permits.join(', ') : '無' }}
-                        </div>
+                    </div>
 
-                        <div class="mt-3 flex justify-end gap-2 border-t border-gray-200 pt-2">
-                            <button v-if="!isPast(task.endDate)" @click.stop="openEditModal(task)" class="flex items-center text-[10px] text-blue-500 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded transition-colors">
-                                修改
-                            </button>
-                            <button @click.stop="confirmDelete(task)" class="flex items-center text-[10px] text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded transition-colors">
-                                刪除紀錄
-                            </button>
+                    <div v-if="sortBy === 'time' && index < activeTasks.length - 1 && task.startDate !== activeTasks[index+1].startDate" 
+                         class="my-5 border-b-[3px] border-dotted border-blue-200 relative">
+                        <span class="absolute right-0 -top-2.5 bg-gray-50 text-blue-400 font-bold text-[9px] px-2 rounded-full border border-blue-100">
+                            {{ activeTasks[index+1].startDate }}
+                        </span>
+                    </div>
+                </template>
+            </div>
+
+            <div class="mt-8">
+                <div class="flex items-center space-x-2 mb-4">
+                    <hr class="flex-grow border-slate-300">
+                    <span class="text-xs font-bold text-slate-400">已完工紀錄 (自動隱藏)</span>
+                    <hr class="flex-grow border-slate-300">
+                </div>
+
+                <div v-if="completedDaysVisible > 0" class="space-y-4 mb-4">
+                    <div v-if="visibleCompletedTasks.length === 0" class="text-center text-gray-400 text-xs py-2">
+                        這段期間沒有完工紀錄。
+                    </div>
+                    <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-lg shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-slate-50 border-slate-300 opacity-75 grayscale">
+                        <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-grow">
+                                    <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white bg-slate-400">
+                                        {{ task.contractor || '未指定班組' }} <span class="ml-1 font-normal">(已完工)</span>
+                                    </div>
+                                    <div class="mt-1 flex items-center gap-1 flex-wrap">
+                                        <span v-for="loc in getLocations(task)" class="bg-slate-200 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                            {{ loc.phase }} | {{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}
+                                        </span>
+                                    </div>
+                                    <div class="mt-1.5 font-bold text-gray-700">{{ task.mainCategory }}</div>
+                                </div>
+                                <div class="text-right text-xs pt-1 shrink-0">
+                                    <div class="font-bold text-slate-500">⏱ {{ task.days }} 工作天</div>
+                                    <div class="text-slate-400 mt-1">{{ task.startDate }} 至 {{ task.endDate }}</div>
+                                    <div class="text-slate-400 mt-1.5 font-medium truncate w-20" title="管理職">👤 {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-show="task.expanded" class="p-3 border-t text-sm bg-slate-100 border-slate-200">
+                            <div class="flex flex-wrap gap-1 mb-3">
+                                <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[10px] px-2 py-0.5 rounded">{{ sub }}</span>
+                            </div>
+                            <div class="mt-3 flex justify-between items-center border-t border-slate-300 pt-3">
+                                <div>
+                                    <button v-if="canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" class="text-[11px] px-4 py-2 rounded-lg font-black bg-white text-slate-700 border border-slate-300 hover:bg-slate-200 shadow-sm transition-all active:scale-95">
+                                        ↩️ 取消完工 (返工)
+                                    </button>
+                                </div>
+                                <button @click.stop="confirmDelete(task)" class="flex items-center text-[10px] text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded transition-colors font-bold">刪除</button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <button v-if="sortedTasks.length > visibleLimit" @click="loadMore" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm">
-                    載入更多過去的工項 (+10筆) ▼
-                </button>
+                <div class="flex gap-2">
+                    <button @click="completedDaysVisible += 7" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95">
+                        展開已完工 (載入7天) ▼
+                    </button>
+                    <button v-if="completedDaysVisible > 0" @click="completedDaysVisible = 0" class="shrink-0 py-3 px-4 bg-slate-200 text-slate-600 rounded-xl font-black text-sm hover:bg-slate-300 transition-colors active:scale-95">
+                        隱藏 ❌
+                    </button>
+                </div>
             </div>
         </main>
 
@@ -183,42 +248,48 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 mb-1">施工大樓</label>
-                            <select v-model="newTask.building" @change="handleBuildingChange" class="w-full bg-gray-50 border-0 rounded-xl p-3 text-base">
-                                <option v-for="b in config.buildings" :value="b">{{ b }}</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 mb-1">樓層</label>
-                            <select v-model="newTask.floor" 
-                                    :required="newTask.building !== '倉庫'"
-                                    :disabled="newTask.building === '倉庫'"
-                                    class="w-full bg-gray-50 border-0 rounded-xl p-3 text-base disabled:opacity-50">
-                                <option value="" disabled v-if="newTask.building !== '倉庫'">請選擇...</option>
-                                <option v-if="newTask.building === '倉庫'" value="無">無</option>
-                                <option v-for="f in config.floors" :key="f" :value="f">{{ f }}</option>
-                            </select>
+                    <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                        <label class="block text-xs font-bold text-blue-800 mb-2">施工地點</label>
+                        <div v-for="(loc, index) in newTask.locations" :key="index" class="mb-3 p-3 bg-white rounded-lg shadow-sm border border-gray-100">
+                            <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
+                                <div class="flex space-x-6">
+                                    <label class="flex items-center text-sm font-bold text-gray-700 cursor-pointer">
+                                        <input type="radio" v-model="loc.phase" value="P1" class="mr-2 w-4 h-4 accent-amber-500"> P1
+                                    </label>
+                                    <label class="flex items-center text-sm font-bold text-gray-700 cursor-pointer">
+                                        <input type="radio" v-model="loc.phase" value="P2" class="mr-2 w-4 h-4 accent-blue-600"> P2
+                                    </label>
+                                </div>
+                                <div class="flex gap-1">
+                                    <button type="button" v-if="newTask.locations.length > 1" @click="newTask.locations.splice(index, 1)" class="w-7 h-7 flex items-center justify-center bg-red-50 text-red-500 rounded font-black hover:bg-red-100 transition-colors">－</button>
+                                    <button type="button" v-if="index === newTask.locations.length - 1" @click="newTask.locations.push({ phase: 'P2', building: 'FAB', floor: '' })" class="w-7 h-7 flex items-center justify-center bg-blue-100 text-blue-600 rounded font-black hover:bg-blue-200 transition-colors">＋</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <select v-model="loc.building" @change="loc.building === '倉庫' ? loc.floor = '無' : (loc.floor === '無' ? loc.floor = '' : null)" class="w-full bg-gray-50 border-0 rounded-lg p-3 text-base">
+                                    <option v-for="b in config.buildings" :value="b">{{ b }}</option>
+                                </select>
+                                <select v-model="loc.floor" :required="loc.building !== '倉庫'" :disabled="loc.building === '倉庫'" class="w-full bg-gray-50 border-0 rounded-lg p-3 text-base disabled:opacity-50">
+                                    <option value="" disabled v-if="loc.building !== '倉庫'">請選擇樓層</option>
+                                    <option v-if="loc.building === '倉庫'" value="無">無</option>
+                                    <option v-for="f in config.floors" :key="f" :value="f">{{ f }}</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="bg-blue-50 p-3 rounded-xl border border-blue-100">
-                        <label class="block text-xs font-bold text-blue-800 mb-1">負責班組 / 包商</label>
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">負責班組 / 包商</label>
                         <input list="contractors-list" v-model="newTask.contractor" placeholder="請選擇或輸入" required class="w-full bg-white border-0 rounded-lg p-3 text-base mb-3 shadow-sm placeholder:text-sm">
-                        <datalist id="contractors-list">
-                            <option v-for="c in config.contractors" :value="c"></option>
-                        </datalist>
+                        <datalist id="contractors-list"><option v-for="c in config.contractors" :value="c"></option></datalist>
 
-                        <label class="block text-xs font-bold text-blue-800 mb-1">管理職</label>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">管理職</label>
                         <div v-for="(mgr, index) in newTask.managers" :key="index" class="flex items-center gap-2 mb-2">
                             <input list="managers-list" v-model="newTask.managers[index]" placeholder="請選擇或輸入" required class="flex-grow bg-white border-0 rounded-lg p-3 text-base shadow-sm placeholder:text-sm">
                             <button type="button" v-if="newTask.managers.length > 1" @click="newTask.managers.splice(index, 1)" class="bg-red-100 text-red-600 w-10 h-10 rounded-lg font-black shrink-0 hover:bg-red-200">－</button>
                             <button type="button" v-if="index === newTask.managers.length - 1" @click="newTask.managers.push('')" class="bg-blue-200 text-blue-700 w-10 h-10 rounded-lg font-black shrink-0 hover:bg-blue-300">＋</button>
                         </div>
-                        <datalist id="managers-list">
-                            <option v-for="m in config.managers" :value="m"></option>
-                        </datalist>
+                        <datalist id="managers-list"><option v-for="m in config.managers" :value="m"></option></datalist>
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
@@ -237,8 +308,8 @@
                         </div>
                     </div>
 
-                    <div v-if="newTask.mainCategory" class="bg-gray-50 p-3 rounded-xl">
-                        <label class="block text-xs font-bold text-gray-400 mb-2">施作細項</label>
+                    <div v-if="newTask.mainCategory" class="bg-amber-50/30 p-3 rounded-xl border border-amber-100">
+                        <label class="block text-xs font-bold text-gray-500 mb-2">施作細項</label>
                         <div class="grid grid-cols-2 gap-2 mb-3">
                             <label v-for="sub in config.categories[newTask.mainCategory]" class="flex items-center text-xs p-2 bg-white rounded-lg border border-gray-100 shadow-sm cursor-pointer hover:bg-gray-50">
                                 <input type="checkbox" :value="sub" v-model="newTask.subItems" class="mr-2 rounded text-blue-600"> {{ sub }}
@@ -246,11 +317,11 @@
                             <span v-if="config.categories[newTask.mainCategory].length === 0" class="text-xs text-gray-400">無細項</span>
                         </div>
 
-                        <div v-if="availablePermits.length > 0" class="pt-3 border-t border-gray-200">
-                            <label class="block text-xs font-bold text-amber-600 mb-2">應辦申請單 (請勾選)</label>
+                        <div v-if="availablePermits.length > 0" class="pt-3 border-t border-amber-100">
+                            <label class="block text-xs font-bold text-amber-700 mb-2">應辦申請單 (請勾選)</label>
                             <div class="grid grid-cols-2 gap-2">
-                                <label v-for="permit in availablePermits" class="flex items-center text-xs p-2 bg-amber-50 rounded-lg border border-amber-100 shadow-sm cursor-pointer hover:bg-amber-100 transition-colors">
-                                    <input type="checkbox" :value="permit" v-model="newTask.permits" class="mr-2 rounded text-amber-600"> {{ permit }}
+                                <label v-for="permit in availablePermits" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-200 shadow-sm cursor-pointer hover:bg-amber-50">
+                                    <input type="checkbox" :value="permit" v-model="newTask.permits" class="mr-2 rounded text-amber-500"> {{ permit }}
                                 </label>
                             </div>
                         </div>
@@ -292,8 +363,8 @@
                 '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'],
                 '機櫃安裝': ['機櫃定位', '機櫃下線槽安裝', '設備安裝'],
                 '開盤送電': ['電線佈放', '接臨時電盤', '接正式電盤', '結線未送電'], 
-                '電話機佈放': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'],
-                '打線': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
+                '話機安裝': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'],
+                '備料': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
                 '物料運送': ['設備進場', '線材搬運', '廢料清運'],
                 '吊掛作業': ['吊車進場', '設備起降', '交維佈設', '人員淨空'], 
                 '測PIM': ['儀器校正', '負載測試', 'PIM量測', '報告產出']
@@ -310,20 +381,19 @@
                     tasks: [],
                     actionQueue: [], 
                     isSyncing: false,
-                    visibleLimit: 20,
                     showModal: false,
                     editingTaskId: null,
                     currentYear: today.getFullYear(),
                     currentMonth: today.getMonth(),
                     todayStr: todayStr,
-                    sortBy: 'contractor', // 💡 新增：目前的排序狀態 ('contractor' 或 'time')
+                    sortBy: 'contractor',
+                    completedDaysVisible: 0, // 已完工清單展開天數
                     newTask: {
                         startDate: todayStr,
                         days: 1, 
-                        building: 'FAB',
-                        floor: '',
+                        locations: [{ phase: 'P2', building: 'FAB', floor: '' }], // 升級為陣列
                         contractor: '',
-                        managers: [''], // 預設為空字串
+                        managers: [''], 
                         includeSaturday: false,
                         includeSunday: false,
                         mainCategory: '',
@@ -335,41 +405,43 @@
             computed: {
                 availablePermits() {
                     if (!this.newTask.mainCategory) return [];
-                    if (this.newTask.mainCategory === '打線') return []; 
+                    if (this.newTask.mainCategory === '備料') return []; 
                     if (this.newTask.mainCategory === '物料運送') return ['車輛進出放行單', '物料進出放行單']; 
                     return ['一般施工單', '變電站申請', '離架申請', '天花板申請', '重物移入申請']; 
                 },
                 
-                sortedTasks() {
-                    let active = [];
-                    let past = [];
-                    
-                    this.tasks.forEach(t => {
-                        if (this.isPast(t.endDate)) past.push(t);
-                        else active.push(t);
-                    });
-                    
-                    // 💡 修正：根據 sortBy 變數決定進行中工項的排序方式
+                // 區分進行中與已完工
+                activeTasks() {
+                    let active = this.tasks.filter(t => !this.isTaskCompleted(t));
                     active.sort((a, b) => {
                         if (this.sortBy === 'contractor') {
-                            // 先按包商，再按時間
                             let cA = a.contractor || '';
                             let cB = b.contractor || '';
                             if (cA !== cB) return cA.localeCompare(cB);
                             return a.startDate.localeCompare(b.startDate);
                         } else {
-                            // 純按時間 (startDate 越早排越上面)
                             return a.startDate.localeCompare(b.startDate);
                         }
                     });
-                    
-                    // 已過期的維持固定：純用結束時間排序 (endDate 越近的排越上面)
-                    past.sort((a, b) => b.endDate.localeCompare(a.endDate));
-                    
-                    return [...active, ...past];
+                    return active;
                 },
-                visibleTasks() {
-                    return this.sortedTasks.slice(0, this.visibleLimit);
+                
+                completedTasks() {
+                    let completed = this.tasks.filter(t => this.isTaskCompleted(t));
+                    completed.sort((a, b) => {
+                        // 完工狀態以 endDate 為主要排序依據（越近的排越上面）
+                        return b.endDate.localeCompare(a.endDate);
+                    });
+                    return completed;
+                },
+
+                // 根據展開天數過濾已完工任務
+                visibleCompletedTasks() {
+                    if (this.completedDaysVisible <= 0) return [];
+                    let cutoffDate = new Date(this.todayStr);
+                    cutoffDate.setDate(cutoffDate.getDate() - this.completedDaysVisible);
+                    let cutoffStr = new Date(cutoffDate.getTime() - (cutoffDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                    return this.completedTasks.filter(t => t.endDate >= cutoffStr);
                 },
 
                 calendarDays() {
@@ -399,10 +471,7 @@
                         });
 
                         days.push({ 
-                            day: i, 
-                            dateStr: dateStr, 
-                            isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-                            tasks: dailyTasks 
+                            day: i, dateStr: dateStr, isWeekend: dayOfWeek === 0 || dayOfWeek === 6, tasks: dailyTasks 
                         });
                     }
                     return days;
@@ -411,10 +480,8 @@
             mounted() {
                 const savedTasks = localStorage.getItem('site_tasks');
                 if (savedTasks) this.tasks = JSON.parse(savedTasks);
-                
                 const savedQueue = localStorage.getItem('site_sync_queue');
                 if (savedQueue) this.actionQueue = JSON.parse(savedQueue);
-
                 this.fetchDataFromFirebase();
             },
             methods: {
@@ -422,62 +489,79 @@
                     localStorage.setItem('site_tasks', JSON.stringify(this.tasks));
                     localStorage.setItem('site_sync_queue', JSON.stringify(this.actionQueue));
                 },
-                isUnsynced(taskId) {
-                    return this.actionQueue.some(a => a.localId === taskId || a.id === taskId);
-                },
+                isUnsynced(taskId) { return this.actionQueue.some(a => a.localId === taskId || a.id === taskId); },
                 
+                // 相容舊資料的 Location 讀取
+                getLocations(task) {
+                    if (task.locations && task.locations.length > 0) return task.locations;
+                    return [{ phase: 'P2', building: task.building, floor: task.floor }];
+                },
+
+                // 判斷是否為完工狀態 (包含主動點擊 或 日期過期)
+                isTaskCompleted(task) {
+                    return task.isCompleted === true || this.isPast(task.endDate);
+                },
+
+                // 判斷按鈕是否可以顯示 (當日防呆)
+                canToggleComplete(task) {
+                    if (task.isCompleted) {
+                        // 若已完工，且標記時間是「今天」，才允許點擊「返工」
+                        return task.completedDate === this.todayStr;
+                    } else {
+                        // 若未完工，隨時可以點擊「標記完工」
+                        return true;
+                    }
+                },
+
+                // 切換完工狀態
+                toggleCompleteStatus(task) {
+                    let formattedData = { ...task };
+                    formattedData.isCompleted = !task.isCompleted;
+                    formattedData.completedDate = formattedData.isCompleted ? this.todayStr : null;
+                    
+                    // 更新本地陣列
+                    const index = this.tasks.findIndex(t => t.id === task.id);
+                    if (index !== -1) {
+                        this.tasks[index] = formattedData;
+                        // 加入同步隊列
+                        const existingAction = this.actionQueue.find(a => a.type === 'update' && a.id === task.id);
+                        if (existingAction) {
+                            existingAction.payload = formattedData;
+                        } else {
+                            this.actionQueue.push({ type: 'update', id: task.id, payload: formattedData });
+                        }
+                        this.saveLocalState();
+                    }
+                },
+
                 getContractorColor(contractor) {
-                    const fixedMap = {
-                        '和億': 'bg-blue-600',
-                        '富懋': 'bg-emerald-600',
-                        '明辰': 'bg-rose-500',
-                        '明凱': 'bg-amber-600',
-                        '金鐠鑼': 'bg-purple-600'
-                    };
+                    const fixedMap = { '和億': 'bg-blue-600', '富懋': 'bg-emerald-600', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600' };
                     if (!contractor) return 'bg-slate-400';
                     let name = contractor.trim();
                     if (fixedMap[name]) return fixedMap[name];
-                    
                     const fallbackColors = ['bg-cyan-600', 'bg-pink-600', 'bg-indigo-600', 'bg-teal-600'];
-                    let hash = 0;
-                    for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
+                    let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
                     return fallbackColors[hash % fallbackColors.length];
-                },
-                
-                getTaskBorderColor(contractor) {
-                    const baseColor = this.getContractorColor(contractor);
-                    return baseColor.replace('bg-', 'border-');
                 },
 
                 getCalendarTaskStyles(task, dateStr) {
                     let classes = [this.getContractorColor(task.contractor)];
+                    if (dateStr < this.todayStr || task.isCompleted) classes.push('grayscale opacity-60');
                     
-                    if (dateStr < this.todayStr) {
-                        classes.push('grayscale opacity-60');
-                    }
-                    
-                    let isStart = dateStr === task.startDate;
-                    let isEnd = dateStr === task.endDate;
-                    
-                    if (isStart && isEnd) {
-                        classes.push('rounded-sm mx-0');
-                    } else if (isStart) {
-                        classes.push('rounded-l-sm rounded-r-none ml-0 mr-[-2px]');
-                    } else if (isEnd) {
-                        classes.push('rounded-r-sm rounded-l-none mr-0 ml-[-2px]');
-                    } else {
-                        classes.push('rounded-none mx-[-2px]');
-                    }
-                    
+                    let isStart = dateStr === task.startDate; let isEnd = dateStr === task.endDate;
+                    if (isStart && isEnd) classes.push('rounded-sm mx-0');
+                    else if (isStart) classes.push('rounded-l-sm rounded-r-none ml-0 mr-[-2px]');
+                    else if (isEnd) classes.push('rounded-r-sm rounded-l-none mr-0 ml-[-2px]');
+                    else classes.push('rounded-none mx-[-2px]');
                     return classes;
                 },
 
                 openNewModal() {
                     this.editingTaskId = null;
                     this.newTask = {
-                        startDate: this.todayStr, days: 1, building: 'FAB', floor: '',
-                        contractor: '', managers: [''], // 預設為空字串
-                        includeSaturday: false, includeSunday: false,
+                        startDate: this.todayStr, days: 1, 
+                        locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
+                        contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
                         mainCategory: '', subItems: [], permits: []
                     };
                     this.showModal = true;
@@ -486,58 +570,41 @@
                     this.editingTaskId = task.id;
                     this.newTask = { 
                         ...task, 
-                        // 如果原本有經理，就把經理帶過來，否則給一個空字串讓使用者選
+                        locations: task.locations && task.locations.length > 0 ? JSON.parse(JSON.stringify(task.locations)) : [{ phase: 'P2', building: task.building, floor: task.floor }],
                         managers: task.managers && task.managers.length > 0 ? [...task.managers] : [''],
                         permits: task.permits ? [...task.permits] : []
                     };
-                    if (task.building === '倉庫') this.newTask.floor = '無';
                     this.showModal = true;
                 },
-                handleBuildingChange() {
-                    if (this.newTask.building === '倉庫') this.newTask.floor = '無';
-                    else if (this.newTask.floor === '無') this.newTask.floor = '';
-                },
                 handleCategoryChange() {
-                    this.newTask.subItems = [];
-                    this.newTask.permits = [];
-                    if (this.newTask.mainCategory === '物料運送') {
-                        this.newTask.permits = ['車輛進出放行單', '物料進出放行單'];
-                    }
+                    this.newTask.subItems = []; this.newTask.permits = [];
+                    if (this.newTask.mainCategory === '物料運送') this.newTask.permits = ['車輛進出放行單', '物料進出放行單'];
                 },
                 calculateEndDate(start, days, incSat, incSun) {
-                    let date = new Date(start);
-                    let totalDays = parseInt(days, 10);
-                    let count = 1; 
-                    
+                    let date = new Date(start); let totalDays = parseInt(days, 10); let count = 1; 
                     while (count < totalDays) {
-                        date.setDate(date.getDate() + 1);
-                        let dayOfWeek = date.getDay();
-                        let isWorkDay = true;
-                        
+                        date.setDate(date.getDate() + 1); let dayOfWeek = date.getDay(); let isWorkDay = true;
                         if (dayOfWeek === 6 && !incSat) isWorkDay = false; 
                         if (dayOfWeek === 0 && !incSun) isWorkDay = false; 
-                        
                         if (isWorkDay) count++;
                     }
                     return new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
                 },
                 saveTask() {
                     const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days, this.newTask.includeSaturday, this.newTask.includeSunday);
+                    // 組合顯示字串
+                    let locationString = this.newTask.locations.map(l => `${l.phase} ${l.building}${l.floor!=='無'?' '+l.floor:''}`).join(' / ');
 
                     const formattedData = {
-                        startDate: this.newTask.startDate,
-                        days: this.newTask.days,
-                        building: this.newTask.building,
-                        floor: this.newTask.floor,
-                        contractor: this.newTask.contractor.trim(),
-                        managers: [...this.newTask.managers.filter(m => m.trim() !== '')], // 過濾掉空字串
-                        includeSaturday: this.newTask.includeSaturday,
-                        includeSunday: this.newTask.includeSunday,
-                        mainCategory: this.newTask.mainCategory,
-                        subItems: [...this.newTask.subItems],
-                        permits: [...this.newTask.permits],
-                        location: this.newTask.building === '倉庫' ? '倉庫' : `${this.newTask.building} ${this.newTask.floor}`,
-                        endDate: end,
+                        startDate: this.newTask.startDate, days: this.newTask.days,
+                        locations: JSON.parse(JSON.stringify(this.newTask.locations)),
+                        building: this.newTask.locations[0].building, floor: this.newTask.locations[0].floor, // 相容舊版欄位
+                        contractor: this.newTask.contractor.trim(), managers: [...this.newTask.managers.filter(m => m.trim() !== '')], 
+                        includeSaturday: this.newTask.includeSaturday, includeSunday: this.newTask.includeSunday,
+                        mainCategory: this.newTask.mainCategory, subItems: [...this.newTask.subItems], permits: [...this.newTask.permits],
+                        location: locationString, endDate: end,
+                        isCompleted: this.newTask.isCompleted || false,
+                        completedDate: this.newTask.completedDate || null
                     };
 
                     if (this.editingTaskId) {
@@ -545,11 +612,8 @@
                         if (index !== -1) {
                             this.tasks[index] = { ...this.tasks[index], ...formattedData };
                             const existingAction = this.actionQueue.find(a => a.type === 'add' && a.localId === this.editingTaskId);
-                            if (existingAction) {
-                                existingAction.payload = formattedData; 
-                            } else {
-                                this.actionQueue.push({ type: 'update', id: this.editingTaskId, payload: formattedData });
-                            }
+                            if (existingAction) existingAction.payload = formattedData; 
+                            else this.actionQueue.push({ type: 'update', id: this.editingTaskId, payload: formattedData });
                         }
                     } else {
                         const localId = 'local-' + Date.now();
@@ -557,9 +621,7 @@
                         this.tasks.unshift(newTask);
                         this.actionQueue.push({ type: 'add', localId: localId, payload: formattedData });
                     }
-                    
-                    this.saveLocalState();
-                    this.showModal = false;
+                    this.saveLocalState(); this.showModal = false;
                 },
                 
                 async fetchDataFromFirebase() {
@@ -567,104 +629,53 @@
                         const q = query(tasksCollection, orderBy('createdAt', 'desc'));
                         const snapshot = await getDocs(q);
                         const fetchedTasks = [];
-                        snapshot.forEach((doc) => {
-                            fetchedTasks.push({
-                                id: doc.id,
-                                ...doc.data(),
-                                expanded: false
-                            });
-                        });
-                        this.tasks = fetchedTasks;
-                        this.saveLocalState();
-                    } catch (error) {
-                        console.error("讀取 Firebase 資料失敗：", error);
-                    }
+                        snapshot.forEach((doc) => { fetchedTasks.push({ id: doc.id, ...doc.data(), expanded: false }); });
+                        this.tasks = fetchedTasks; this.saveLocalState();
+                    } catch (error) { console.error("讀取 Firebase 資料失敗：", error); }
                 },
 
                 async syncData() {
-                    if (this.actionQueue.length === 0) {
-                        this.isSyncing = true;
-                        await this.fetchDataFromFirebase();
-                        this.isSyncing = false;
-                        return;
-                    }
-
+                    if (this.actionQueue.length === 0) { this.isSyncing = true; await this.fetchDataFromFirebase(); this.isSyncing = false; return; }
                     this.isSyncing = true;
                     try {
                         for (const action of this.actionQueue) {
-                            if (action.type === 'add') {
-                                action.payload.createdAt = serverTimestamp();
-                                await addDoc(tasksCollection, action.payload);
-                            } else if (action.type === 'update') {
-                                const taskRef = doc(db, 'tasks', action.id);
-                                await updateDoc(taskRef, action.payload);
-                            } else if (action.type === 'delete') {
-                                await deleteDoc(doc(db, 'tasks', action.id));
-                            }
+                            if (action.type === 'add') { action.payload.createdAt = serverTimestamp(); await addDoc(tasksCollection, action.payload); }
+                            else if (action.type === 'update') { const taskRef = doc(db, 'tasks', action.id); await updateDoc(taskRef, action.payload); }
+                            else if (action.type === 'delete') { await deleteDoc(doc(db, 'tasks', action.id)); }
                         }
-                        
-                        this.actionQueue = [];
-                        this.saveLocalState();
-                        await this.fetchDataFromFirebase();
-                        
-                    } catch (error) {
-                        alert("同步失敗，請檢查網路連線或資料庫權限設定\n詳細錯誤：" + error.message);
-                    } finally {
-                        this.isSyncing = false;
-                    }
+                        this.actionQueue = []; this.saveLocalState(); await this.fetchDataFromFirebase();
+                    } catch (error) { alert("同步失敗，請檢查網路連線\n詳細錯誤：" + error.message); } 
+                    finally { this.isSyncing = false; }
                 },
                 
                 scrollToTask(task) {
-                    const taskEndDate = new Date(task.endDate);
-                    const oneMonthAgo = new Date(this.todayStr);
-                    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-                    if (taskEndDate < oneMonthAgo) {
-                        alert('此工項已完工超過一個月，歷史紀錄不再提供點擊跳轉功能。');
-                        return;
-                    }
-
-                    const taskIndex = this.sortedTasks.findIndex(t => t.id === task.id);
-                    if (taskIndex === -1) return; 
-
-                    if (taskIndex >= this.visibleLimit) {
-                        this.visibleLimit = taskIndex + 5;
+                    // 若任務已完工，確保完工區有展開足夠的天數 (上限60天)
+                    if (this.isTaskCompleted(task)) {
+                        let taskDate = new Date(task.endDate); let today = new Date(this.todayStr);
+                        let diffDays = Math.ceil(Math.abs(today - taskDate) / (1000 * 60 * 60 * 24));
+                        
+                        if (diffDays > 60) { alert('此工項已完工超過 60 天，不再提供自動跳轉展開。'); return; }
+                        if (this.completedDaysVisible < diffDays + 1) this.completedDaysVisible = diffDays + 7;
                     }
 
                     nextTick(() => {
                         const element = document.getElementById('task-' + task.id);
                         if (element) {
                             task.expanded = true; 
-                            const headerOffset = 80;
-                            const elementPosition = element.getBoundingClientRect().top;
-                            const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-                            
+                            const offsetPosition = element.getBoundingClientRect().top + window.pageYOffset - 80;
                             window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
-
-                            element.classList.remove('highlight-flash');
-                            void element.offsetWidth; 
-                            element.classList.add('highlight-flash');
+                            element.classList.remove('highlight-flash'); void element.offsetWidth; element.classList.add('highlight-flash');
                         }
                     });
                 },
 
                 isPast(dateStr) { return dateStr < this.todayStr; },
-                getTaskCardStyle(task) {
-                    if (this.isPast(task.endDate)) return 'bg-slate-50 border-slate-300 opacity-60 grayscale';
-                    return 'bg-white ' + this.getTaskBorderColor(task.contractor);
-                },
-                loadMore() { this.visibleLimit += 10; },
                 confirmDelete(task) {
-                    if (confirm(`確定要刪除「${task.location} - ${task.mainCategory}」嗎？刪除後請記得點擊雲端同步。`)) {
+                    if (confirm(`確定要刪除「${task.mainCategory}」嗎？刪除後請記得點擊雲端同步。`)) {
                         this.tasks = this.tasks.filter(t => t.id !== task.id);
-                        
                         const addActionIndex = this.actionQueue.findIndex(a => a.type === 'add' && a.localId === task.id);
-                        if (addActionIndex !== -1) {
-                            this.actionQueue.splice(addActionIndex, 1);
-                        } else {
-                            this.actionQueue.push({ type: 'delete', id: task.id });
-                        }
-                        
+                        if (addActionIndex !== -1) this.actionQueue.splice(addActionIndex, 1);
+                        else this.actionQueue.push({ type: 'delete', id: task.id });
                         this.saveLocalState();
                     }
                 },
