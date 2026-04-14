@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v14 (多地點與完工管理版)</title>
+    <title>工程執行紀錄系統 v15 (預設時間排序版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -95,23 +95,21 @@
 
                         <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
                             <div class="flex justify-between items-start">
-                                <div class="flex-grow">
-                                    <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white" :class="getContractorColor(task.contractor)">
+                                <div class="flex-grow pr-2"> <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white" :class="getContractorColor(task.contractor)">
                                         {{ task.contractor || '未指定班組' }}
                                     </div>
                                     <div class="mt-1 flex items-center gap-1 flex-wrap">
-                                        <span v-for="loc in getLocations(task)" class="bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                        <span v-for="loc in getLocations(task)" class="bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold px-1.5 py-0.5 rounded mb-1">
                                             <span :class="loc.phase === 'P1' ? 'text-amber-600' : 'text-blue-600'">{{ loc.phase }}</span>
                                             <span class="mx-1 text-slate-300">|</span> 
                                             {{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}
                                         </span>
                                     </div>
-                                    <div class="mt-1.5 font-black text-gray-800 tracking-wide">{{ task.mainCategory }}</div>
+                                    <div class="mt-1 font-black text-gray-800 tracking-wide">{{ task.mainCategory }}</div>
                                 </div>
-                                <div class="text-right text-xs pt-1 shrink-0 flex flex-col items-end">
-                                    <div class="font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded">⏱ {{ task.days }} 工作天</div>
+                                <div class="text-right text-xs pt-1 shrink-0 flex flex-col items-end min-w-[100px]"> <div class="font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded">⏱ {{ task.days }} 工作天</div>
                                     <div class="text-gray-400 mt-1 font-medium">{{ task.startDate }} 至 {{ task.endDate }}</div>
-                                    <div class="text-slate-500 mt-1.5 font-bold truncate max-w-[100px]" title="管理職">
+                                    <div class="text-slate-500 mt-1.5 font-bold text-right" title="管理職">
                                         👤 {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
                                     </div>
                                 </div>
@@ -178,21 +176,21 @@
                     <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-lg shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-slate-50 border-slate-300 opacity-75 grayscale">
                         <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
                             <div class="flex justify-between items-start">
-                                <div class="flex-grow">
+                                <div class="flex-grow pr-2">
                                     <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white bg-slate-400">
                                         {{ task.contractor || '未指定班組' }} <span class="ml-1 font-normal">(已完工)</span>
                                     </div>
                                     <div class="mt-1 flex items-center gap-1 flex-wrap">
-                                        <span v-for="loc in getLocations(task)" class="bg-slate-200 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                        <span v-for="loc in getLocations(task)" class="bg-slate-200 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded mb-1">
                                             {{ loc.phase }} | {{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}
                                         </span>
                                     </div>
-                                    <div class="mt-1.5 font-bold text-gray-700">{{ task.mainCategory }}</div>
+                                    <div class="mt-1 font-bold text-gray-700">{{ task.mainCategory }}</div>
                                 </div>
-                                <div class="text-right text-xs pt-1 shrink-0">
+                                <div class="text-right text-xs pt-1 shrink-0 min-w-[100px]">
                                     <div class="font-bold text-slate-500">⏱ {{ task.days }} 工作天</div>
                                     <div class="text-slate-400 mt-1">{{ task.startDate }} 至 {{ task.endDate }}</div>
-                                    <div class="text-slate-400 mt-1.5 font-medium truncate w-20" title="管理職">👤 {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}</div>
+                                    <div class="text-slate-400 mt-1.5 font-medium text-right" title="管理職">👤 {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}</div>
                                 </div>
                             </div>
                         </div>
@@ -386,12 +384,12 @@
                     currentYear: today.getFullYear(),
                     currentMonth: today.getMonth(),
                     todayStr: todayStr,
-                    sortBy: 'contractor',
-                    completedDaysVisible: 0, // 已完工清單展開天數
+                    sortBy: 'time', // 💡 修改：預設改為按時間排序
+                    completedDaysVisible: 0, 
                     newTask: {
                         startDate: todayStr,
                         days: 1, 
-                        locations: [{ phase: 'P2', building: 'FAB', floor: '' }], // 升級為陣列
+                        locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
                         contractor: '',
                         managers: [''], 
                         includeSaturday: false,
@@ -429,7 +427,6 @@
                 completedTasks() {
                     let completed = this.tasks.filter(t => this.isTaskCompleted(t));
                     completed.sort((a, b) => {
-                        // 完工狀態以 endDate 為主要排序依據（越近的排越上面）
                         return b.endDate.localeCompare(a.endDate);
                     });
                     return completed;
@@ -491,39 +488,31 @@
                 },
                 isUnsynced(taskId) { return this.actionQueue.some(a => a.localId === taskId || a.id === taskId); },
                 
-                // 相容舊資料的 Location 讀取
                 getLocations(task) {
                     if (task.locations && task.locations.length > 0) return task.locations;
                     return [{ phase: 'P2', building: task.building, floor: task.floor }];
                 },
 
-                // 判斷是否為完工狀態 (包含主動點擊 或 日期過期)
                 isTaskCompleted(task) {
                     return task.isCompleted === true || this.isPast(task.endDate);
                 },
 
-                // 判斷按鈕是否可以顯示 (當日防呆)
                 canToggleComplete(task) {
                     if (task.isCompleted) {
-                        // 若已完工，且標記時間是「今天」，才允許點擊「返工」
                         return task.completedDate === this.todayStr;
                     } else {
-                        // 若未完工，隨時可以點擊「標記完工」
                         return true;
                     }
                 },
 
-                // 切換完工狀態
                 toggleCompleteStatus(task) {
                     let formattedData = { ...task };
                     formattedData.isCompleted = !task.isCompleted;
                     formattedData.completedDate = formattedData.isCompleted ? this.todayStr : null;
                     
-                    // 更新本地陣列
                     const index = this.tasks.findIndex(t => t.id === task.id);
                     if (index !== -1) {
                         this.tasks[index] = formattedData;
-                        // 加入同步隊列
                         const existingAction = this.actionQueue.find(a => a.type === 'update' && a.id === task.id);
                         if (existingAction) {
                             existingAction.payload = formattedData;
@@ -592,13 +581,12 @@
                 },
                 saveTask() {
                     const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days, this.newTask.includeSaturday, this.newTask.includeSunday);
-                    // 組合顯示字串
                     let locationString = this.newTask.locations.map(l => `${l.phase} ${l.building}${l.floor!=='無'?' '+l.floor:''}`).join(' / ');
 
                     const formattedData = {
                         startDate: this.newTask.startDate, days: this.newTask.days,
                         locations: JSON.parse(JSON.stringify(this.newTask.locations)),
-                        building: this.newTask.locations[0].building, floor: this.newTask.locations[0].floor, // 相容舊版欄位
+                        building: this.newTask.locations[0].building, floor: this.newTask.locations[0].floor, 
                         contractor: this.newTask.contractor.trim(), managers: [...this.newTask.managers.filter(m => m.trim() !== '')], 
                         includeSaturday: this.newTask.includeSaturday, includeSunday: this.newTask.includeSunday,
                         mainCategory: this.newTask.mainCategory, subItems: [...this.newTask.subItems], permits: [...this.newTask.permits],
@@ -649,7 +637,6 @@
                 },
                 
                 scrollToTask(task) {
-                    // 若任務已完工，確保完工區有展開足夠的天數 (上限60天)
                     if (this.isTaskCompleted(task)) {
                         let taskDate = new Date(task.endDate); let today = new Date(this.todayStr);
                         let diffDays = Math.ceil(Math.abs(today - taskDate) / (1000 * 60 * 60 * 24));
