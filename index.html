@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v16 (停工管理版)</title>
+    <title>工程執行紀錄系統 AP7 </title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -184,7 +184,7 @@
                                 <div class="flex-grow pr-2">
                                     <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white bg-slate-400">
                                         {{ task.contractor || '未指定班組' }} 
-                                        <span v-if="task.isSuspended" class="ml-1 font-normal">(停工: {{ task.suspendReason }})</span>
+                                        <span v-if="task.isSuspended" class="ml-1 font-normal">(已停工)</span>
                                         <span v-else class="ml-1 font-normal">(已完工)</span>
                                     </div>
                                     <div class="mt-1 flex items-center gap-1 flex-wrap">
@@ -201,7 +201,12 @@
                                 </div>
                             </div>
                         </div>
+                        
                         <div v-show="task.expanded" class="p-3 border-t text-sm bg-slate-100 border-slate-200">
+                            <div v-if="task.isSuspended" class="mb-3 text-xs p-2 rounded bg-rose-100 text-rose-800 border border-rose-200 font-bold">
+                                🛑 停工原因：{{ task.suspendReason }}
+                            </div>
+
                             <div class="flex flex-wrap gap-1 mb-3">
                                 <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[10px] px-2 py-0.5 rounded">{{ sub }}</span>
                             </div>
@@ -414,7 +419,6 @@
                 availablePermits() {
                     if (!this.newTask.mainCategory) return [];
                     if (this.newTask.mainCategory === '備料') return []; 
-                    // 放行單文字更新為「車輛進廠放行單」
                     if (this.newTask.mainCategory === '物料運送') return ['車輛進廠放行單', '物料進出放行單']; 
                     return ['一般施工單', '變電站申請', '離架申請', '天花板申請', '重物移入申請']; 
                 },
