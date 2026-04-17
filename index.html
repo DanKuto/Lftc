@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v15 (預設時間排序版)</title>
+    <title>工程執行紀錄系統 v16 (停工管理升級版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -95,7 +95,8 @@
 
                         <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
                             <div class="flex justify-between items-start">
-                                <div class="flex-grow pr-2"> <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white" :class="getContractorColor(task.contractor)">
+                                <div class="flex-grow pr-2">
+                                    <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white" :class="getContractorColor(task.contractor)">
                                         {{ task.contractor || '未指定班組' }}
                                     </div>
                                     <div class="mt-1 flex items-center gap-1 flex-wrap">
@@ -107,7 +108,8 @@
                                     </div>
                                     <div class="mt-1 font-black text-gray-800 tracking-wide">{{ task.mainCategory }}</div>
                                 </div>
-                                <div class="text-right text-xs pt-1 shrink-0 flex flex-col items-end min-w-[100px]"> <div class="font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded">⏱ {{ task.days }} 工作天</div>
+                                <div class="text-right text-xs pt-1 shrink-0 flex flex-col items-end min-w-[100px]">
+                                    <div class="font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded">⏱ {{ task.days }} 工作天</div>
                                     <div class="text-gray-400 mt-1 font-medium">{{ task.startDate }} 至 {{ task.endDate }}</div>
                                     <div class="text-slate-500 mt-1.5 font-bold text-right" title="管理職">
                                         👤 {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
@@ -134,11 +136,14 @@
                             </div>
 
                             <div class="mt-4 flex justify-between items-center border-t border-gray-200 pt-3">
-                                <div>
+                                <div class="flex gap-2">
                                     <button v-if="canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" 
-                                            class="text-[11px] px-4 py-2 rounded-lg font-black shadow-sm transition-all active:scale-95"
-                                            :class="task.isCompleted ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200'">
-                                        {{ task.isCompleted ? '↩️ 取消完工 (返工)' : '✅ 標記已完工' }}
+                                            class="text-[11px] px-3 py-2 rounded-lg font-black shadow-sm transition-all active:scale-95 bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200">
+                                        ✅ 標記已完工
+                                    </button>
+                                    <button v-if="canToggleComplete(task)" @click.stop="suspendTask(task)" 
+                                            class="text-[11px] px-3 py-2 rounded-lg font-black shadow-sm transition-all active:scale-95 bg-rose-500 text-white hover:bg-rose-600 shadow-rose-200">
+                                        ⏸️ 停工
                                     </button>
                                 </div>
                                 <div class="flex gap-2">
@@ -165,20 +170,22 @@
             <div class="mt-8">
                 <div class="flex items-center space-x-2 mb-4">
                     <hr class="flex-grow border-slate-300">
-                    <span class="text-xs font-bold text-slate-400">已完工紀錄 (自動隱藏)</span>
+                    <span class="text-xs font-bold text-slate-400">已完工與停工紀錄 (自動隱藏)</span>
                     <hr class="flex-grow border-slate-300">
                 </div>
 
                 <div v-if="completedDaysVisible > 0" class="space-y-4 mb-4">
                     <div v-if="visibleCompletedTasks.length === 0" class="text-center text-gray-400 text-xs py-2">
-                        這段期間沒有完工紀錄。
+                        這段期間沒有完工或停工紀錄。
                     </div>
-                    <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-lg shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-slate-50 border-slate-300 opacity-75 grayscale">
+                    <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-lg shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-slate-50 border-slate-300 opacity-80 grayscale">
                         <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
                             <div class="flex justify-between items-start">
                                 <div class="flex-grow pr-2">
-                                    <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white bg-slate-400">
-                                        {{ task.contractor || '未指定班組' }} <span class="ml-1 font-normal">(已完工)</span>
+                                    <div class="text-xs font-bold mb-1 px-1.5 py-0.5 inline-block rounded text-white" :class="task.isSuspended ? 'bg-rose-500' : 'bg-slate-400'">
+                                        {{ task.contractor || '未指定班組' }} 
+                                        <span v-if="task.isSuspended" class="ml-1 font-normal">(停工: {{ task.suspendReason }})</span>
+                                        <span v-else class="ml-1 font-normal">(已完工)</span>
                                     </div>
                                     <div class="mt-1 flex items-center gap-1 flex-wrap">
                                         <span v-for="loc in getLocations(task)" class="bg-slate-200 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded mb-1">
@@ -201,7 +208,7 @@
                             <div class="mt-3 flex justify-between items-center border-t border-slate-300 pt-3">
                                 <div>
                                     <button v-if="canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" class="text-[11px] px-4 py-2 rounded-lg font-black bg-white text-slate-700 border border-slate-300 hover:bg-slate-200 shadow-sm transition-all active:scale-95">
-                                        ↩️ 取消完工 (返工)
+                                        {{ task.isSuspended ? '↩️ 取消停工 (復工)' : '↩️ 取消完工 (返工)' }}
                                     </button>
                                 </div>
                                 <button @click.stop="confirmDelete(task)" class="flex items-center text-[10px] text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded transition-colors font-bold">刪除</button>
@@ -384,7 +391,7 @@
                     currentYear: today.getFullYear(),
                     currentMonth: today.getMonth(),
                     todayStr: todayStr,
-                    sortBy: 'time', // 💡 修改：預設改為按時間排序
+                    sortBy: 'time', 
                     completedDaysVisible: 0, 
                     newTask: {
                         startDate: todayStr,
@@ -404,11 +411,11 @@
                 availablePermits() {
                     if (!this.newTask.mainCategory) return [];
                     if (this.newTask.mainCategory === '備料') return []; 
-                    if (this.newTask.mainCategory === '物料運送') return ['車輛進出放行單', '物料進出放行單']; 
+                    if (this.newTask.mainCategory === '物料運送') return ['車輛進廠放行單', '物料進出放行單']; 
                     return ['一般施工單', '變電站申請', '離架申請', '天花板申請', '重物移入申請']; 
                 },
                 
-                // 區分進行中與已完工
+                // 區分進行中與已完工/停工
                 activeTasks() {
                     let active = this.tasks.filter(t => !this.isTaskCompleted(t));
                     active.sort((a, b) => {
@@ -494,33 +501,65 @@
                 },
 
                 isTaskCompleted(task) {
-                    return task.isCompleted === true || this.isPast(task.endDate);
+                    return task.isCompleted === true || task.isSuspended === true || this.isPast(task.endDate);
                 },
 
+                // 判斷防呆：只限當日才能返工/復工
                 canToggleComplete(task) {
-                    if (task.isCompleted) {
+                    if (task.isCompleted || task.isSuspended) {
                         return task.completedDate === this.todayStr;
                     } else {
                         return true;
                     }
                 },
 
-                toggleCompleteStatus(task) {
-                    let formattedData = { ...task };
-                    formattedData.isCompleted = !task.isCompleted;
-                    formattedData.completedDate = formattedData.isCompleted ? this.todayStr : null;
-                    
-                    const index = this.tasks.findIndex(t => t.id === task.id);
+                // 統一更新 Task 狀態的方法 (避免重複 Code)
+                updateTaskAction(taskId, formattedData) {
+                    const index = this.tasks.findIndex(t => t.id === taskId);
                     if (index !== -1) {
                         this.tasks[index] = formattedData;
-                        const existingAction = this.actionQueue.find(a => a.type === 'update' && a.id === task.id);
+                        const existingAction = this.actionQueue.find(a => a.type === 'update' && a.id === taskId);
                         if (existingAction) {
                             existingAction.payload = formattedData;
                         } else {
-                            this.actionQueue.push({ type: 'update', id: task.id, payload: formattedData });
+                            this.actionQueue.push({ type: 'update', id: taskId, payload: formattedData });
                         }
                         this.saveLocalState();
                     }
+                },
+
+                // 切換已完工 / 取消狀態
+                toggleCompleteStatus(task) {
+                    let formattedData = { ...task };
+                    if (task.isCompleted || task.isSuspended) {
+                        // 復原為進行中
+                        formattedData.isCompleted = false;
+                        formattedData.isSuspended = false;
+                        formattedData.suspendReason = null;
+                        formattedData.completedDate = null;
+                    } else {
+                        // 標記為完工
+                        formattedData.isCompleted = true;
+                        formattedData.isSuspended = false;
+                        formattedData.completedDate = this.todayStr;
+                    }
+                    this.updateTaskAction(task.id, formattedData);
+                },
+
+                // 觸發停工
+                suspendTask(task) {
+                    let reason = window.prompt("請輸入停工原因：");
+                    if (reason === null) return; // 使用者按取消
+                    if (reason.trim() === '') {
+                        alert('停工原因不能為空白！');
+                        return;
+                    }
+                    let formattedData = { ...task };
+                    formattedData.isCompleted = false;
+                    formattedData.isSuspended = true;
+                    formattedData.suspendReason = reason.trim();
+                    formattedData.completedDate = this.todayStr; // 紀錄停工當天的日期 (用於防呆)
+                    this.updateTaskAction(task.id, formattedData);
                 },
 
                 getContractorColor(contractor) {
@@ -535,7 +574,11 @@
 
                 getCalendarTaskStyles(task, dateStr) {
                     let classes = [this.getContractorColor(task.contractor)];
-                    if (dateStr < this.todayStr || task.isCompleted) classes.push('grayscale opacity-60');
+                    
+                    // 已過期 或 標記完工/停工 -> 呈現灰階 (若提前標記，整個排程連帶未來都會反灰，符合後續天數保留但在日曆上不再活躍的邏輯)
+                    if (dateStr < this.todayStr || task.isCompleted || task.isSuspended) {
+                        classes.push('grayscale opacity-60');
+                    }
                     
                     let isStart = dateStr === task.startDate; let isEnd = dateStr === task.endDate;
                     if (isStart && isEnd) classes.push('rounded-sm mx-0');
@@ -567,7 +610,7 @@
                 },
                 handleCategoryChange() {
                     this.newTask.subItems = []; this.newTask.permits = [];
-                    if (this.newTask.mainCategory === '物料運送') this.newTask.permits = ['車輛進出放行單', '物料進出放行單'];
+                    if (this.newTask.mainCategory === '物料運送') this.newTask.permits = ['車輛進廠放行單', '物料進出放行單'];
                 },
                 calculateEndDate(start, days, incSat, incSun) {
                     let date = new Date(start); let totalDays = parseInt(days, 10); let count = 1; 
@@ -591,25 +634,23 @@
                         includeSaturday: this.newTask.includeSaturday, includeSunday: this.newTask.includeSunday,
                         mainCategory: this.newTask.mainCategory, subItems: [...this.newTask.subItems], permits: [...this.newTask.permits],
                         location: locationString, endDate: end,
+                        // 保留狀態，確保編輯不會覆蓋掉原有的完工或停工狀態
                         isCompleted: this.newTask.isCompleted || false,
+                        isSuspended: this.newTask.isSuspended || false,
+                        suspendReason: this.newTask.suspendReason || null,
                         completedDate: this.newTask.completedDate || null
                     };
 
                     if (this.editingTaskId) {
-                        const index = this.tasks.findIndex(t => t.id === this.editingTaskId);
-                        if (index !== -1) {
-                            this.tasks[index] = { ...this.tasks[index], ...formattedData };
-                            const existingAction = this.actionQueue.find(a => a.type === 'add' && a.localId === this.editingTaskId);
-                            if (existingAction) existingAction.payload = formattedData; 
-                            else this.actionQueue.push({ type: 'update', id: this.editingTaskId, payload: formattedData });
-                        }
+                        this.updateTaskAction(this.editingTaskId, formattedData);
                     } else {
                         const localId = 'local-' + Date.now();
                         const newTask = { id: localId, ...formattedData, expanded: false };
                         this.tasks.unshift(newTask);
                         this.actionQueue.push({ type: 'add', localId: localId, payload: formattedData });
+                        this.saveLocalState();
                     }
-                    this.saveLocalState(); this.showModal = false;
+                    this.showModal = false;
                 },
                 
                 async fetchDataFromFirebase() {
