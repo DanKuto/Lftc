@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v21 (最終優化版)</title>
+    <title>工程執行紀錄系統 v22 (高效歷史跳轉版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -175,11 +175,18 @@
                     <hr class="flex-grow border-slate-300">
                 </div>
 
-                <div v-if="completedDaysVisible > 0" class="space-y-4 mb-4">
+                <div v-if="completedDaysVisible > 0 || visibleCompletedTasks.length > 0" class="space-y-4 mb-4">
+                    
                     <div v-if="visibleCompletedTasks.length === 0" class="text-center text-gray-400 text-xs py-2">
                         這段期間沒有歷史紀錄。
                     </div>
+                    
                     <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-lg shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-slate-50 border-slate-300 opacity-75 grayscale">
+                        
+                        <div v-if="forcedVisibleTaskId === task.id && completedDaysVisible === 0" class="bg-blue-100 text-blue-700 text-[10px] font-bold text-center py-1">
+                            ⬇️ 從行事曆跳轉查看的歷史紀錄 ⬇️
+                        </div>
+
                         <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
                             <div class="flex justify-between items-start">
                                 <div class="flex-grow pr-2">
@@ -235,7 +242,7 @@
                     <button @click="completedDaysVisible += 7" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95">
                         展開歷史紀錄 (載入7天) ▼
                     </button>
-                    <button v-if="completedDaysVisible > 0" @click="completedDaysVisible = 0" class="shrink-0 py-3 px-4 bg-slate-200 text-slate-600 rounded-xl font-black text-sm hover:bg-slate-300 transition-colors active:scale-95">
+                    <button v-if="completedDaysVisible > 0 || forcedVisibleTaskId !== null" @click="hideCompletedTasks" class="shrink-0 py-3 px-4 bg-slate-200 text-slate-600 rounded-xl font-black text-sm hover:bg-slate-300 transition-colors active:scale-95">
                         隱藏 ❌
                     </button>
                 </div>
@@ -411,8 +418,9 @@
                     currentMonth: today.getMonth(),
                     todayStr: todayStr,
                     sortBy: 'time', 
-                    visibleLimit: 20, // 控制進行中工項的載入數量
+                    visibleLimit: 20, 
                     completedDaysVisible: 0, 
+                    forcedVisibleTaskId: null, // 💡 新增：用來記錄強制顯示的特定歷史工項
                     newTask: {
                         startDate: todayStr,
                         days: 1, 
@@ -451,7 +459,6 @@
                     return active;
                 },
 
-                // 限制顯示數量的計算屬性，減少 DOM 渲染
                 visibleActiveTasks() {
                     return this.activeTasks.slice(0, this.visibleLimit);
                 },
@@ -465,11 +472,27 @@
                 },
 
                 visibleCompletedTasks() {
-                    if (this.completedDaysVisible <= 0) return [];
-                    let cutoffDate = new Date(this.todayStr);
-                    cutoffDate.setDate(cutoffDate.getDate() - this.completedDaysVisible);
-                    let cutoffStr = new Date(cutoffDate.getTime() - (cutoffDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-                    return this.completedTasks.filter(t => t.endDate >= cutoffStr);
+                    // 💡 修改：判斷要顯示哪些歷史紀錄
+                    let visibleList = [];
+                    
+                    // 如果有展開天數，就把該範圍內的撈出來
+                    if (this.completedDaysVisible > 0) {
+                        let cutoffDate = new Date(this.todayStr);
+                        cutoffDate.setDate(cutoffDate.getDate() - this.completedDaysVisible);
+                        let cutoffStr = new Date(cutoffDate.getTime() - (cutoffDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                        visibleList = this.completedTasks.filter(t => t.endDate >= cutoffStr);
+                    }
+
+                    // 如果有「強制顯示」的任務，確保它在清單內
+                    if (this.forcedVisibleTaskId) {
+                        const forcedTask = this.completedTasks.find(t => t.id === this.forcedVisibleTaskId);
+                        if (forcedTask && !visibleList.find(t => t.id === forcedTask.id)) {
+                            // 把它加到最上面
+                            visibleList.unshift(forcedTask);
+                        }
+                    }
+
+                    return visibleList;
                 },
 
                 calendarDays() {
@@ -728,14 +751,24 @@
                 loadMore() {
                     this.visibleLimit += 10;
                 },
+
+                // 💡 新增：隱藏歷史紀錄時順便清除強制顯示的 ID
+                hideCompletedTasks() {
+                    this.completedDaysVisible = 0;
+                    this.forcedVisibleTaskId = null;
+                },
                 
                 scrollToTask(task) {
+                    // 💡 修改：如果是點擊已完工的歷史項目，改用強制顯示單一卡片的策略
                     if (this.isTaskCompleted(task)) {
-                        let taskDate = new Date(task.endDate); let today = new Date(this.todayStr);
-                        let diffDays = Math.ceil(Math.abs(today - taskDate) / (1000 * 60 * 60 * 24));
-                        
-                        if (diffDays > 60) { alert('此工項歷史已超過 60 天，不再提供自動跳轉展開。'); return; }
-                        if (this.completedDaysVisible < diffDays + 1) this.completedDaysVisible = diffDays + 7;
+                        this.forcedVisibleTaskId = task.id;
+                        // 不強制展開全部歷史，只靠 forcedVisibleTaskId 把他抓出來
+                    } else {
+                        // 進行中的項目，檢查是否需要載入更多
+                        const taskIndex = this.activeTasks.findIndex(t => t.id === task.id);
+                        if (taskIndex !== -1 && taskIndex >= this.visibleLimit) {
+                            this.visibleLimit = taskIndex + 5;
+                        }
                     }
 
                     nextTick(() => {
