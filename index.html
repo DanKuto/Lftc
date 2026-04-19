@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v34 (報表狀態統一版)</title>
+    <title>工程執行紀錄系統 v35 (終極動態載入版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -35,7 +35,11 @@
 
         <main class="p-4 flex-grow space-y-4">
             
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3 relative">
+                <div v-if="isLoadingHistory" class="absolute top-2 right-2 flex items-center justify-center bg-white/90 backdrop-blur rounded-full px-2 py-1 text-[9px] font-bold text-blue-500 shadow border border-blue-100 z-10">
+                    <span class="animate-spin mr-1">🔄</span> 載入月份資料...
+                </div>
+
                 <div class="flex justify-between items-center mb-3 border-b border-gray-100 pb-2">
                     <button @click="changeMonth(-1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors">〈</button>
                     <h2 class="text-base font-black text-slate-700">{{ currentYear }} / {{ currentMonth + 1 }}</h2>
@@ -71,6 +75,9 @@
                 </div>
                 <div v-show="showFilters" class="p-3 space-y-3">
                     <input type="text" v-model="filters.keyword" placeholder="輸入工項、地點或備註關鍵字..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <div class="text-[9px] text-gray-400 font-bold px-1">
+                        💡 系統採動態載入，目前搜尋涵蓋已載入月份。若找無資料，請至下方點擊「載入更多歷史紀錄」。
+                    </div>
                     
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <select v-model="filters.contractor" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -212,7 +219,7 @@
                     </div>
                 </template>
 
-                <button v-if="activeTasks.length > visibleLimit" @click="loadMore" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-blue-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
+                <button v-if="activeTasks.length > visibleLimit" @click="visibleLimit += 10" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-blue-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
                     載入更多進行中工項 (還有 {{ activeTasks.length - visibleLimit }} 筆) ▼
                 </button>
             </div>
@@ -220,19 +227,19 @@
             <div class="mt-8">
                 <div class="flex items-center space-x-2 mb-4">
                     <hr class="flex-grow border-slate-300">
-                    <span class="text-xs font-bold text-slate-400">已完工與停工紀錄 (自動隱藏)</span>
+                    <span class="text-xs font-bold text-slate-400">已完工與停工紀錄 (動態載入)</span>
                     <hr class="flex-grow border-slate-300">
                 </div>
 
-                <div v-if="completedDaysVisible > 0 || visibleCompletedTasks.length > 0" class="space-y-4 mb-4">
+                <div v-if="historyVisibleLimit > 0 || visibleCompletedTasks.length > 0" class="space-y-4 mb-4">
                     
                     <div v-if="visibleCompletedTasks.length === 0" class="text-center text-gray-400 text-sm py-6 bg-white rounded-xl border border-dashed border-gray-300">
                         這段期間沒有歷史紀錄。
                     </div>
                     
-                    <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden border-l-4 relative bg-slate-50 border-slate-300 opacity-80">
+                    <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden border-l-4 relative bg-slate-50 border-slate-300 opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0">
                         
-                        <div v-if="forcedVisibleTaskId === task.id && completedDaysVisible === 0" class="bg-blue-100 text-blue-700 text-[10px] font-bold text-center py-1">
+                        <div v-if="forcedVisibleTaskId === task.id && historyVisibleLimit === 0" class="bg-blue-100 text-blue-700 text-[10px] font-bold text-center py-1">
                             ⬇️ 從行事曆跳轉查看的歷史紀錄 ⬇️
                         </div>
 
@@ -288,10 +295,11 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button @click="completedDaysVisible += 7" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95">
-                        展開歷史紀錄 (載入7天) ▼
+                    <button @click="expandHistory" :disabled="isLoadingHistory" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95 flex items-center justify-center disabled:opacity-50">
+                        <span v-if="isLoadingHistory" class="animate-spin mr-2">🔄</span>
+                        {{ isLoadingHistory ? '撈取歷史資料中...' : '載入更多歷史紀錄 ▼' }}
                     </button>
-                    <button v-if="completedDaysVisible > 0 || forcedVisibleTaskId !== null" @click="hideCompletedTasks" class="shrink-0 py-3 px-4 bg-slate-200 text-slate-600 rounded-xl font-black text-sm hover:bg-slate-300 transition-colors active:scale-95 shadow-sm">
+                    <button v-if="historyVisibleLimit > 0 || forcedVisibleTaskId !== null" @click="hideCompletedTasks" class="shrink-0 py-3 px-4 bg-slate-200 text-slate-600 rounded-xl font-black text-sm hover:bg-slate-300 transition-colors active:scale-95 shadow-sm">
                         隱藏 ❌
                     </button>
                 </div>
@@ -419,7 +427,7 @@
     <script type="module">
         import { createApp, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, orderBy, limit, getDocs, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBW2VjW1_mR7wbdAlAu3wTUOpHU6ZT62bo",
@@ -464,7 +472,9 @@
 
                 return {
                     config: CONFIG,
-                    tasks: [],
+                    tasks: [], 
+                    loadedMonths: [], // 💡 紀錄已經去 Firebase 抓過歷史資料的月份 (例如 '2026-04')
+                    isLoadingHistory: false,
                     isOnline: navigator.onLine,
                     showModal: false,
                     editingTaskId: null,
@@ -473,7 +483,8 @@
                     todayStr: todayStr,
                     sortBy: 'time', 
                     visibleLimit: 20, 
-                    completedDaysVisible: 0, 
+                    historyVisibleLimit: 0, // 💡 歷史紀錄的顯示上限
+                    historyFetchCursor: { year: today.getFullYear(), month: today.getMonth() }, // 💡 記錄目前往回撈取到了哪個月
                     forcedVisibleTaskId: null,
                     showFilters: false,
                     filters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
@@ -546,15 +557,11 @@
 
                 visibleCompletedTasks() {
                     let visibleList = [];
+                    // 💡 有搜尋條件時，顯示所有已載入的符合結果
                     if (this.hasActiveFilters && this.filters.status !== 'active') {
                         visibleList = this.completedTasks;
-                    } else if (this.completedDaysVisible > 0) {
-                        let [ty, tm, td] = this.todayStr.split('-');
-                        let cutoffDate = new Date(ty, tm - 1, td);
-                        cutoffDate.setDate(cutoffDate.getDate() - this.completedDaysVisible);
-                        let cy = cutoffDate.getFullYear(); let cm = String(cutoffDate.getMonth() + 1).padStart(2, '0'); let cd = String(cutoffDate.getDate()).padStart(2, '0');
-                        let cutoffStr = `${cy}-${cm}-${cd}`;
-                        visibleList = this.completedTasks.filter(t => t.endDate >= cutoffStr);
+                    } else if (this.historyVisibleLimit > 0) {
+                        visibleList = this.completedTasks.slice(0, this.historyVisibleLimit);
                     }
 
                     if (this.forcedVisibleTaskId) {
@@ -633,30 +640,68 @@
                     }
                 } catch(e) {}
 
-                const q = query(tasksCollection);
-                onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
-                    const fetchedTasks = [];
-                    snapshot.forEach((doc) => { 
-                        const existingTask = this.tasks.find(t => t.id === doc.id);
-                        fetchedTasks.push({ 
-                            id: doc.id, 
-                            ...doc.data(), 
-                            expanded: existingTask ? existingTask.expanded : false 
-                        }); 
+                // 💡 2. 進行中任務：輕量即時監聽 (上限150筆，涵蓋所有活躍工作)
+                const qRecent = query(tasksCollection, orderBy('createdAt', 'desc'), limit(150));
+                onSnapshot(qRecent, { includeMetadataChanges: true }, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "added" || change.type === "modified") {
+                            const docData = change.doc.data();
+                            const id = change.doc.id;
+                            const idx = this.tasks.findIndex(t => t.id === id);
+                            if (idx !== -1) {
+                                this.tasks[idx] = { id, ...docData, expanded: this.tasks[idx].expanded };
+                            } else {
+                                this.tasks.push({ id, ...docData, expanded: false });
+                            }
+                        }
+                        // 刻意忽略 "removed" 事件，以防歷史資料被擠出 150 名外時從畫面上消失
                     });
-                    this.tasks = fetchedTasks;
                     this.saveLocalState();
                 }, (error) => { console.error("即時連線錯誤:", error); });
+
+                // 初始化載入當月行事曆的歷史資料
+                this.loadMonthData(this.currentYear, this.currentMonth);
             },
             methods: {
                 saveLocalState() {
                     localStorage.setItem('site_tasks', JSON.stringify(this.tasks));
                 },
 
+                // 💡 1. 核心動態載入函式：按月份去資料庫抓取
+                async loadMonthData(year, month) {
+                    let mStr = String(month + 1).padStart(2, '0');
+                    let monthKey = `${year}-${mStr}`;
+                    
+                    // 如果這個月已經抓過了，就直接略過，極度節省資源
+                    if (this.loadedMonths.includes(monthKey)) return;
+                    
+                    this.isLoadingHistory = true;
+                    let lastDay = new Date(year, month + 1, 0).getDate();
+                    let startStr = `${year}-${mStr}-01`;
+                    let endStr = `${year}-${mStr}-${lastDay}`;
+                    
+                    try {
+                        const q = query(tasksCollection, where("endDate", ">=", startStr), where("endDate", "<=", endStr));
+                        const snapshot = await getDocs(q);
+                        let newTasks = [];
+                        snapshot.forEach(doc => {
+                            if (!this.tasks.some(t => t.id === doc.id)) {
+                                newTasks.push({ id: doc.id, ...doc.data(), expanded: false });
+                            }
+                        });
+                        this.tasks.push(...newTasks);
+                        this.loadedMonths.push(monthKey);
+                        this.saveLocalState();
+                    } catch(e) {
+                        console.error("載入月份資料失敗:", e);
+                    } finally {
+                        this.isLoadingHistory = false;
+                    }
+                },
+
                 exportCSV() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
                     
-                    // 💡 狀態邏輯修改：把已過期合併為已完工
                     let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
                     
                     if (this.filters.status === 'all' && exportList.length > 150) {
@@ -687,6 +732,7 @@
                 },
 
                 resetFilters() { this.filters = { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' }; },
+                isUnsynced() { return false; }, 
                 getLocations(task) { return task.locations && task.locations.length > 0 ? task.locations : [{ phase: 'P2', building: task.building, floor: task.floor }]; },
                 isTaskCompleted(task) { return task.isCompleted === true || task.isSuspended === true || this.isPast(task.endDate); },
                 canToggleComplete(task) { if (task.isCompleted) return task.completedDate === this.todayStr; return !task.isSuspended; },
@@ -711,6 +757,8 @@
 
                 async confirmDelete(task) {
                     if (confirm(`確定要刪除「${task.mainCategory}」嗎？`)) {
+                        // 真實刪除時，需從陣列中剔除
+                        this.tasks = this.tasks.filter(t => t.id !== task.id);
                         try { await deleteDoc(doc(db, 'tasks', task.id)); } catch (e) { console.error(e); }
                     }
                 },
@@ -738,8 +786,11 @@
                         }
                         this.showModal = false;
                         let [sy, sm] = this.newTask.startDate.split('-'); this.currentYear = parseInt(sy, 10); this.currentMonth = parseInt(sm, 10) - 1;
+                        this.loadMonthData(this.currentYear, this.currentMonth);
                     } catch (e) { alert("儲存異常，請檢查網路。"); console.error(e); }
                 },
+
+                async syncData() { alert("已啟用 Firebase 原生快取技術！\n資料全自動即時同步，斷線時會自動保存於本機。"); },
 
                 getContractorColor(contractor) {
                     const fixedMap = { '和億': 'bg-blue-600', '富懋': 'bg-emerald-600', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
@@ -748,6 +799,7 @@
                     let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
                     return fallbackColors[hash % fallbackColors.length];
                 },
+                getTaskBorderColor(contractor) { const c = this.getContractorColor(contractor); return c.replace('bg-', 'border-'); },
 
                 openNewModal() {
                     this.editingTaskId = null;
@@ -784,10 +836,34 @@
                     return `${ey}-${em}-${ed}`;
                 },
 
+                // 💡 3. 歷史資料游標載入：按需往回撈取上個月的資料
+                async expandHistory() {
+                    this.historyVisibleLimit += 10;
+                    
+                    // 如果目前本地已有的歷史資料不夠顯示，就自動去 Firebase 挖上個月的資料
+                    let loopGuard = 0;
+                    while (this.completedTasks.length < this.historyVisibleLimit && loopGuard < 3) {
+                        this.historyFetchCursor.month--;
+                        if (this.historyFetchCursor.month < 0) {
+                            this.historyFetchCursor.month = 11;
+                            this.historyFetchCursor.year--;
+                        }
+                        await this.loadMonthData(this.historyFetchCursor.year, this.historyFetchCursor.month);
+                        loopGuard++; // 防呆，最多一次只往回挖3個月
+                    }
+                },
+
                 loadMore() { this.visibleLimit += 10; },
-                hideCompletedTasks() { this.completedDaysVisible = 0; this.forcedVisibleTaskId = null; },
+                hideCompletedTasks() { 
+                    this.historyVisibleLimit = 0; 
+                    this.forcedVisibleTaskId = null; 
+                    this.historyFetchCursor = { year: this.currentYear, month: this.currentMonth };
+                },
                 
-                scrollToTask(task) {
+                async scrollToTask(task) {
+                    const targetTask = this.tasks.find(t => t.id === task.id);
+                    if (targetTask) targetTask.expanded = true;
+
                     if (this.isTaskCompleted(task)) { 
                         this.forcedVisibleTaskId = task.id; 
                     } else {
@@ -797,7 +873,6 @@
                     nextTick(() => {
                         const element = document.getElementById('task-' + task.id);
                         if (element) {
-                            task.expanded = true; 
                             const offsetPosition = element.getBoundingClientRect().top + window.pageYOffset - 80;
                             window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
                             element.classList.remove('highlight-flash'); void element.offsetWidth; element.classList.add('highlight-flash');
@@ -805,10 +880,14 @@
                     });
                 },
                 isPast(dateStr) { return dateStr < this.todayStr; },
+                
+                // 💡 換月時，觸發該月份歷史資料的動態載入
                 changeMonth(offset) {
                     this.currentMonth += offset;
                     if (this.currentMonth > 11) { this.currentMonth = 0; this.currentYear++; }
                     else if (this.currentMonth < 0) { this.currentMonth = 11; this.currentYear--; }
+                    
+                    this.loadMonthData(this.currentYear, this.currentMonth);
                 },
                 isToday(s) { return s === this.todayStr; }
             }
