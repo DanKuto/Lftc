@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v26 (預設全狀態版)</title>
+    <title>工程執行紀錄系統 v27 (原生快取與分離抓取版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -23,18 +23,45 @@
         
         <header class="bg-slate-800 text-white p-4 sticky top-0 z-20 shadow-md flex justify-between items-center">
             <h1 class="text-xl font-bold">🏗️ 現場工進系統</h1>
-            <div class="text-[10px] bg-emerald-500/20 text-emerald-300 px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold flex items-center">
+            <div class="text-[10px] px-3 py-1.5 rounded-lg border font-bold flex items-center transition-colors"
+                 :class="isOnline ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'">
                 <span class="mr-2 relative flex h-2 w-2">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  <span v-if="isOnline" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2" :class="isOnline ? 'bg-emerald-500' : 'bg-amber-500'"></span>
                 </span>
-                即時同步與離線快取
+                {{ isOnline ? '雲端即時連線中' : '離線模式 (自動暫存)' }}
             </div>
         </header>
 
         <main class="p-4 flex-grow space-y-4">
             
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3">
+                <div class="flex justify-between items-center mb-3 border-b border-gray-100 pb-2">
+                    <button @click="changeMonth(-1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors">〈</button>
+                    <h2 class="text-base font-black text-slate-700">{{ currentYear }} / {{ currentMonth + 1 }}</h2>
+                    <button @click="changeMonth(1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors">〉</button>
+                </div>
+                
+                <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-black text-slate-400 uppercase mb-2">
+                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                </div>
+                
+                <div class="grid grid-cols-7 gap-1">
+                    <div v-for="(day, index) in calendarDays" :key="index" class="min-h-[70px] border border-gray-100 rounded-md p-1 flex flex-col" :class="{'bg-blue-50 border-blue-200': isToday(day.dateStr), 'bg-gray-50': day.isWeekend && day.day}">
+                        <span v-if="day.day" class="text-xs font-bold mb-1" :class="day.isWeekend ? 'text-red-300' : 'text-slate-400'">{{ day.day }}</span>
+                        <div class="flex-grow space-y-[2px]">
+                            <div v-for="task in day.tasks" 
+                                 @click.stop="scrollToTask(task)"
+                                 class="text-[9px] py-0.5 px-1 truncate text-white font-bold transition-transform active:scale-95 cursor-pointer hover:opacity-90 shadow-sm" 
+                                 :class="getCalendarTaskStyles(task, day.dateStr)">
+                                {{ task.contractor || '未指定' }}: {{ task.mainCategory }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-6">
                 <div class="bg-slate-50 p-3 flex justify-between items-center cursor-pointer border-b border-gray-100 hover:bg-slate-100 transition-colors" @click="showFilters = !showFilters">
                     <div class="font-bold text-slate-700 text-xs flex items-center">
                         <span class="mr-2 text-sm">🔍</span> 搜尋與篩選 (共 {{ filteredTasks.length }} 筆)
@@ -44,6 +71,9 @@
                 </div>
                 <div v-show="showFilters" class="p-3 space-y-3">
                     <input type="text" v-model="filters.keyword" placeholder="輸入工項、地點或備註關鍵字..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <div v-if="!historyFetched && filters.keyword" class="text-[10px] text-amber-600 font-bold px-1">
+                        ⚠️ 目前僅搜尋進行中工項，欲搜尋歷史紀錄請至下方點擊「展開歷史紀錄」。
+                    </div>
                     
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <select v-model="filters.contractor" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -75,32 +105,6 @@
                 </div>
             </div>
 
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3">
-                <div class="flex justify-between items-center mb-3 border-b border-gray-100 pb-2">
-                    <button @click="changeMonth(-1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors">〈</button>
-                    <h2 class="text-base font-black text-slate-700">{{ currentYear }} / {{ currentMonth + 1 }}</h2>
-                    <button @click="changeMonth(1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors">〉</button>
-                </div>
-                
-                <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-black text-slate-400 uppercase mb-2">
-                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-                </div>
-                
-                <div class="grid grid-cols-7 gap-1">
-                    <div v-for="(day, index) in calendarDays" :key="index" class="min-h-[70px] border border-gray-100 rounded-md p-1 flex flex-col" :class="{'bg-blue-50 border-blue-200': isToday(day.dateStr), 'bg-gray-50': day.isWeekend && day.day}">
-                        <span v-if="day.day" class="text-xs font-bold mb-1" :class="day.isWeekend ? 'text-red-300' : 'text-slate-400'">{{ day.day }}</span>
-                        <div class="flex-grow space-y-[2px]">
-                            <div v-for="task in day.tasks" 
-                                 @click.stop="scrollToTask(task)"
-                                 class="text-[9px] py-0.5 px-1 truncate text-white font-bold transition-transform active:scale-95 cursor-pointer hover:opacity-90 shadow-sm" 
-                                 :class="getCalendarTaskStyles(task, day.dateStr)">
-                                {{ task.contractor || '未指定' }}: {{ task.mainCategory }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div class="pt-2">
                 <div class="flex justify-between items-end mb-2">
                     <span class="text-xs font-bold text-slate-400">進行中工項</span>
@@ -123,7 +127,7 @@
             <div class="space-y-4 mt-2">
                 <div v-if="activeTasks.length === 0" class="text-center text-gray-400 py-8 text-sm bg-white rounded-xl border border-dashed border-gray-300">
                     <span class="text-2xl mb-2 block">📭</span>
-                    目前篩選條件下，無進行中工作。
+                    目前無進行中工作。
                 </div>
 
                 <template v-for="(task, index) in visibleActiveTasks" :key="task.id">
@@ -199,7 +203,7 @@
                     </div>
                 </template>
 
-                <button v-if="activeTasks.length > visibleLimit" @click="loadMore" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-blue-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
+                <button v-if="activeTasks.length > visibleLimit" @click="visibleLimit += 10" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-blue-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
                     載入更多進行中工項 (還有 {{ activeTasks.length - visibleLimit }} 筆) ▼
                 </button>
             </div>
@@ -207,13 +211,13 @@
             <div class="mt-8">
                 <div class="flex items-center space-x-2 mb-4">
                     <hr class="flex-grow border-slate-300">
-                    <span class="text-xs font-bold text-slate-400">已完工與停工紀錄 (自動隱藏)</span>
+                    <span class="text-xs font-bold text-slate-400">已完工與停工紀錄 (按需載入)</span>
                     <hr class="flex-grow border-slate-300">
                 </div>
 
                 <div v-if="completedDaysVisible > 0 || visibleCompletedTasks.length > 0" class="space-y-4 mb-4">
                     
-                    <div v-if="visibleCompletedTasks.length === 0" class="text-center text-gray-400 text-sm py-6 bg-white rounded-xl border border-dashed border-gray-300">
+                    <div v-if="visibleCompletedTasks.length === 0 && historyFetched" class="text-center text-gray-400 text-sm py-6 bg-white rounded-xl border border-dashed border-gray-300">
                         這段期間沒有歷史紀錄。
                     </div>
                     
@@ -257,7 +261,7 @@
                             </div>
 
                             <div class="flex flex-wrap gap-1 mb-3">
-                                <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[10px] px-2 py-0.5 rounded shadow-sm">{{ sub }}</span>
+                                <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[10px] px-2 py-0.5 rounded">{{ sub }}</span>
                             </div>
                             <div class="mt-3 flex justify-between items-center border-t border-slate-300 pt-3">
                                 <div class="flex gap-2">
@@ -275,7 +279,8 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button @click="completedDaysVisible += 7" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95">
+                    <button @click="expandHistory" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95 flex items-center justify-center">
+                        <span v-if="isLoadingHistory" class="animate-spin mr-2">🔄</span>
                         展開歷史紀錄 (載入7天) ▼
                     </button>
                     <button v-if="completedDaysVisible > 0 || forcedVisibleTaskId !== null" @click="hideCompletedTasks" class="shrink-0 py-3 px-4 bg-slate-200 text-slate-600 rounded-xl font-black text-sm hover:bg-slate-300 transition-colors active:scale-95 shadow-sm">
@@ -406,7 +411,7 @@
     <script type="module">
         import { createApp, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy, limit, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBW2VjW1_mR7wbdAlAu3wTUOpHU6ZT62bo",
@@ -420,9 +425,8 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
-        enableIndexedDbPersistence(db).catch((err) => {
-            console.warn("無法啟用離線快取:", err);
-        });
+        // 💡 1. 啟用原生 IndexedDB 離線快取
+        enableIndexedDbPersistence(db).catch((err) => { console.warn("無法啟用離線快取:", err); });
 
         const tasksCollection = collection(db, 'tasks');
 
@@ -453,8 +457,10 @@
 
                 return {
                     config: CONFIG,
-                    tasks: [],
-                    isSyncing: false,
+                    localTasks: [], // 單一資料源
+                    isOnline: navigator.onLine,
+                    isLoadingHistory: false,
+                    historyFetched: false,
                     showModal: false,
                     editingTaskId: null,
                     currentYear: today.getFullYear(),
@@ -465,13 +471,7 @@
                     completedDaysVisible: 0, 
                     forcedVisibleTaskId: null,
                     showFilters: false,
-                    filters: {
-                        keyword: '',
-                        contractor: '',
-                        manager: '',
-                        phase: '',
-                        status: 'all' // 💡 修改：預設改為所有狀態
-                    },
+                    filters: { keyword: '', contractor: '', manager: '', phase: '', status: 'all' },
                     newTask: {
                         startDate: todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
                         contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
@@ -494,28 +494,22 @@
                 },
 
                 filteredTasks() {
-                    return this.tasks.filter(t => {
+                    return this.localTasks.filter(t => {
                         let isCompleted = this.isTaskCompleted(t);
                         if (this.filters.status === 'active' && isCompleted) return false;
                         if (this.filters.status === 'completed' && !isCompleted) return false;
 
                         if (this.filters.contractor && t.contractor !== this.filters.contractor) return false;
-
-                        if (this.filters.manager) {
-                            if (!t.managers || !t.managers.includes(this.filters.manager)) return false;
-                        }
-
+                        if (this.filters.manager) { if (!t.managers || !t.managers.includes(this.filters.manager)) return false; }
                         if (this.filters.phase) {
                             let locs = this.getLocations(t);
                             if (!locs.some(l => l.phase === this.filters.phase)) return false;
                         }
-
                         if (this.filters.keyword) {
                             const kw = this.filters.keyword.toLowerCase();
                             const matchText = `${t.mainCategory} ${t.location} ${t.remark || ''} ${t.contractor || ''}`.toLowerCase();
                             if (!matchText.includes(kw)) return false;
                         }
-
                         return true;
                     });
                 },
@@ -550,48 +544,34 @@
                         let [ty, tm, td] = this.todayStr.split('-');
                         let cutoffDate = new Date(ty, tm - 1, td);
                         cutoffDate.setDate(cutoffDate.getDate() - this.completedDaysVisible);
-                        let cy = cutoffDate.getFullYear();
-                        let cm = String(cutoffDate.getMonth() + 1).padStart(2, '0');
-                        let cd = String(cutoffDate.getDate()).padStart(2, '0');
+                        let cy = cutoffDate.getFullYear(); let cm = String(cutoffDate.getMonth() + 1).padStart(2, '0'); let cd = String(cutoffDate.getDate()).padStart(2, '0');
                         let cutoffStr = `${cy}-${cm}-${cd}`;
                         visibleList = this.completedTasks.filter(t => t.endDate >= cutoffStr);
                     }
 
                     if (this.forcedVisibleTaskId) {
                         const forcedTask = this.completedTasks.find(t => t.id === this.forcedVisibleTaskId);
-                        if (forcedTask && !visibleList.find(t => t.id === forcedTask.id)) {
-                            visibleList.unshift(forcedTask);
-                        }
+                        if (forcedTask && !visibleList.find(t => t.id === forcedTask.id)) visibleList.unshift(forcedTask);
                     }
                     return visibleList;
                 },
 
+                // 💡 效能升級：使用 Hash Map 渲染行事曆，不延遲
                 calendarDays() {
                     const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
                     const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
-                    
                     const taskMap = {};
                     
                     this.filteredTasks.forEach(task => {
                         if (!task.startDate || !task.endDate) return;
-                        
-                        let [sy, sm, sd] = task.startDate.split('-');
-                        let currentDate = new Date(sy, sm - 1, sd);
-                        
-                        let [ey, em, ed] = task.endDate.split('-');
-                        let endDate = new Date(ey, em - 1, ed);
-                        
-                        let maxDays = 100;
+                        let [sy, sm, sd] = task.startDate.split('-'); let currentDate = new Date(sy, sm - 1, sd);
+                        let [ey, em, ed] = task.endDate.split('-'); let endDate = new Date(ey, em - 1, ed);
                         let count = 0;
                         
-                        while (currentDate <= endDate && count < maxDays) {
-                            let y = currentDate.getFullYear();
-                            let m = String(currentDate.getMonth() + 1).padStart(2, '0');
-                            let d = String(currentDate.getDate()).padStart(2, '0');
+                        while (currentDate <= endDate && count < 100) {
+                            let y = currentDate.getFullYear(); let m = String(currentDate.getMonth() + 1).padStart(2, '0'); let d = String(currentDate.getDate()).padStart(2, '0');
                             let dateStr = `${y}-${m}-${d}`;
-                            
-                            let dayOfWeek = currentDate.getDay();
-                            let isWorkDay = true;
+                            let dayOfWeek = currentDate.getDay(); let isWorkDay = true;
                             if (dayOfWeek === 6 && !task.includeSaturday) isWorkDay = false;
                             if (dayOfWeek === 0 && !task.includeSunday) isWorkDay = false;
                             
@@ -599,146 +579,145 @@
                                 if (!taskMap[dateStr]) taskMap[dateStr] = [];
                                 taskMap[dateStr].push(task);
                             }
-                            
-                            currentDate.setDate(currentDate.getDate() + 1);
-                            count++;
+                            currentDate.setDate(currentDate.getDate() + 1); count++;
                         }
                     });
 
                     let days = [];
                     for (let i = 0; i < firstDay; i++) days.push({ day: null, dateStr: null, tasks: [] });
-                    
                     for (let i = 1; i <= daysInMonth; i++) {
                         const dateStr = `${this.currentYear}-${String(this.currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
                         const d = new Date(this.currentYear, this.currentMonth, i);
                         const dayOfWeek = d.getDay();
                         
                         let dailyTasks = taskMap[dateStr] ? [...taskMap[dateStr]] : [];
-                        
                         dailyTasks.sort((a, b) => {
                             let cA = a.contractor || ''; let cB = b.contractor || '';
                             if (cA !== cB) return cA.localeCompare(cB);
                             return a.id.localeCompare(b.id);
                         });
-
                         days.push({ day: i, dateStr: dateStr, isWeekend: dayOfWeek === 0 || dayOfWeek === 6, tasks: dailyTasks });
                     }
                     return days;
                 }
             },
             mounted() {
+                window.addEventListener('online', () => this.isOnline = true);
+                window.addEventListener('offline', () => this.isOnline = false);
                 this.setupRealtimeSync();
             },
             methods: {
+                // 💡 2. 分離抓取核心：這裡「只監聽」未完工的資料 (極低流量)
                 setupRealtimeSync() {
-                    const q = query(tasksCollection, orderBy('createdAt', 'desc'), limit(500));
-                    onSnapshot(q, (snapshot) => {
-                        const fetchedTasks = [];
-                        snapshot.forEach((doc) => { 
-                            fetchedTasks.push({ id: doc.id, ...doc.data(), expanded: false }); 
+                    const qActive = query(tasksCollection, where("isCompleted", "==", false));
+                    onSnapshot(qActive, { includeMetadataChanges: true }, (snapshot) => {
+                        snapshot.docChanges().forEach((change) => {
+                            const taskData = { id: change.doc.id, ...change.doc.data() };
+                            if (change.type === "added" || change.type === "modified") {
+                                const idx = this.localTasks.findIndex(t => t.id === taskData.id);
+                                if (idx !== -1) {
+                                    taskData.expanded = this.localTasks[idx].expanded;
+                                    this.localTasks.splice(idx, 1, taskData);
+                                } else {
+                                    taskData.expanded = false;
+                                    this.localTasks.push(taskData);
+                                }
+                            }
+                            if (change.type === "removed") {
+                                // 如果是因為標記完工而脫離 Query，保留在本地歷史區；如果是真的刪除，則移除
+                                if (taskData.isCompleted) {
+                                    const idx = this.localTasks.findIndex(t => t.id === taskData.id);
+                                    if (idx !== -1) this.localTasks.splice(idx, 1, taskData);
+                                } else {
+                                    this.localTasks = this.localTasks.filter(t => t.id !== taskData.id);
+                                }
+                            }
                         });
-                        this.tasks = fetchedTasks;
-                    }, (error) => {
-                        console.error("即時連線錯誤:", error);
-                    });
+                    }, (error) => { console.error("即時連線錯誤:", error); });
                 },
 
-                exportCSV() {
-                    if (this.filteredTasks.length === 0) {
-                        return alert('目前沒有篩選出任何資料可供匯出！');
+                // 💡 2. 歷史資料按需抓取 (One-time fetch)
+                async loadHistoryData() {
+                    if (this.historyFetched || this.isLoadingHistory) return;
+                    this.isLoadingHistory = true;
+                    try {
+                        const qHistory = query(tasksCollection, where("isCompleted", "==", true));
+                        const snapshot = await getDocs(qHistory);
+                        snapshot.forEach(doc => {
+                            const taskData = { id: doc.id, ...doc.data(), expanded: false };
+                            if (!this.localTasks.some(t => t.id === taskData.id)) {
+                                this.localTasks.push(taskData);
+                            }
+                        });
+                        this.historyFetched = true;
+                    } catch(e) {
+                        console.error("載入歷史失敗", e);
+                    } finally {
+                        this.isLoadingHistory = false;
                     }
-                    
-                    let csvContent = '\uFEFF'; 
-                    csvContent += '工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,應辦申請單,備註,停工原因\n';
-                    
+                },
+
+                async expandHistory() {
+                    await this.loadHistoryData();
+                    this.completedDaysVisible += 7;
+                },
+
+                // 💡 3. CSV 報表匯出功能
+                exportCSV() {
+                    if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
+                    let csvContent = '\uFEFF工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,應辦申請單,備註,停工原因\n';
                     this.filteredTasks.forEach(t => {
                         let status = t.isSuspended ? '已停工' : (t.isCompleted ? '已完工' : (this.isPast(t.endDate) ? '已過期' : '進行中'));
-                        let startDate = t.startDate || '';
-                        let endDate = t.endDate || '';
-                        let days = t.days || 1;
-                        let contractor = t.contractor || '';
-                        let managers = (t.managers || []).join('、');
-                        let category = t.mainCategory || '';
-                        let subItems = (t.subItems || []).join('、');
-                        let permits = (t.permits || []).join('、');
-                        let remark = (t.remark || '').replace(/\n/g, ' '); 
-                        let suspendReason = (t.suspendReason || '').replace(/\n/g, ' ');
-
                         let locs = this.getLocations(t);
                         let phases = locs.map(l => l.phase).join('、');
                         let buildings = locs.map(l => l.building).join('、');
                         let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、');
-
-                        let row = `"${status}","${startDate}","${endDate}","${days}","${contractor}","${managers}","${phases}","${buildings}","${floors}","${category}","${subItems}","${permits}","${remark}","${suspendReason}"`;
+                        let row = `"${status}","${t.startDate||''}","${t.endDate||''}","${t.days||1}","${t.contractor||''}","${(t.managers||[]).join('、')}","${phases}","${buildings}","${floors}","${t.mainCategory||''}","${(t.subItems||[]).join('、')}","${(t.permits||[]).join('、')}","${(t.remark||'').replace(/\n/g, ' ')}","${(t.suspendReason||'').replace(/\n/g, ' ')}"`;
                         csvContent += row + '\n';
                     });
-
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                     const link = document.createElement("a");
-                    const url = URL.createObjectURL(blob);
-                    link.setAttribute("href", url);
+                    link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })));
                     link.setAttribute("download", `工程紀錄匯出_${this.todayStr}.csv`);
-                    link.style.visibility = 'hidden';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                    document.body.appendChild(link); link.click(); document.body.removeChild(link);
                 },
 
-                resetFilters() {
-                    this.filters = { keyword: '', contractor: '', manager: '', phase: '', status: 'all' };
-                },
-
-                isUnsynced(taskId) { return false; }, 
-                
-                getLocations(task) {
-                    if (task.locations && task.locations.length > 0) return task.locations;
-                    return [{ phase: 'P2', building: task.building, floor: task.floor }];
-                },
-
+                resetFilters() { this.filters = { keyword: '', contractor: '', manager: '', phase: '', status: 'all' }; },
+                isUnsynced() { return false; }, // 由 Firebase 原生接管，不再需要顯示未同步
+                getLocations(task) { return task.locations && task.locations.length > 0 ? task.locations : [{ phase: 'P2', building: task.building, floor: task.floor }]; },
                 isTaskCompleted(task) { return task.isCompleted === true || task.isSuspended === true || this.isPast(task.endDate); },
                 canToggleComplete(task) { if (task.isCompleted) return task.completedDate === this.todayStr; return !task.isSuspended; },
                 canToggleSuspend(task) { if (task.isSuspended) return task.suspendDate === this.todayStr; return !task.isCompleted; },
 
+                // Firebase 互動直接寫入 (底層會處理離線快取)
                 async toggleCompleteStatus(task) {
-                    let isCompleted = !task.isCompleted;
-                    let completedDate = isCompleted ? this.todayStr : null;
-                    try { await updateDoc(doc(db, 'tasks', task.id), { isCompleted, completedDate }); } 
-                    catch (e) { console.error("更新失敗", e); }
+                    let isCompleted = !task.isCompleted; let completedDate = isCompleted ? this.todayStr : null;
+                    // 先在本地做視覺暫存以防畫面消失
+                    if (isCompleted && !this.localTasks.some(t => t.id === task.id)) this.localTasks.unshift({ ...task, isCompleted, completedDate });
+                    try { await updateDoc(doc(db, 'tasks', task.id), { isCompleted, completedDate }); } catch (e) { console.error(e); }
                 },
 
                 async toggleSuspendStatus(task) {
-                    let isSuspended = !task.isSuspended;
-                    let suspendReason = null;
-                    let suspendDate = null;
-                    let isCompleted = task.isCompleted;
-                    let completedDate = task.completedDate;
-
+                    let isSuspended = !task.isSuspended; let suspendReason = null; let suspendDate = null;
+                    let isCompleted = task.isCompleted; let completedDate = task.completedDate;
                     if (isSuspended) {
-                        let reason = prompt("請輸入停工原因：");
-                        if (!reason || reason.trim() === "") return; 
-                        suspendReason = reason.trim();
-                        suspendDate = this.todayStr;
-                        isCompleted = false; 
-                        completedDate = null;
+                        let reason = prompt("請輸入停工原因："); if (!reason || reason.trim() === "") return; 
+                        suspendReason = reason.trim(); suspendDate = this.todayStr; isCompleted = false; completedDate = null;
                     }
-                    try { await updateDoc(doc(db, 'tasks', task.id), { isSuspended, suspendReason, suspendDate, isCompleted, completedDate }); } 
-                    catch (e) { console.error("更新失敗", e); }
+                    try { await updateDoc(doc(db, 'tasks', task.id), { isSuspended, suspendReason, suspendDate, isCompleted, completedDate }); } catch (e) { console.error(e); }
                 },
 
                 async confirmDelete(task) {
                     if (confirm(`確定要刪除「${task.mainCategory}」嗎？`)) {
-                        try { await deleteDoc(doc(db, 'tasks', task.id)); } 
-                        catch (e) { console.error("刪除失敗", e); }
+                        this.localTasks = this.localTasks.filter(t => t.id !== task.id);
+                        try { await deleteDoc(doc(db, 'tasks', task.id)); } catch (e) { console.error(e); }
                     }
                 },
 
                 async saveTask() {
                     const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days, this.newTask.includeSaturday, this.newTask.includeSunday);
                     let locationString = this.newTask.locations.map(l => `${l.phase} ${l.building}${l.floor!=='無'?' '+l.floor:''}`).join(' / ');
-
                     const formattedData = {
-                        startDate: this.newTask.startDate, days: this.newTask.days,
-                        locations: JSON.parse(JSON.stringify(this.newTask.locations)),
+                        startDate: this.newTask.startDate, days: this.newTask.days, locations: JSON.parse(JSON.stringify(this.newTask.locations)),
                         building: this.newTask.locations[0].building, floor: this.newTask.locations[0].floor, 
                         contractor: this.newTask.contractor.trim(), managers: [...this.newTask.managers.filter(m => m.trim() !== '')], 
                         includeSaturday: this.newTask.includeSaturday, includeSunday: this.newTask.includeSunday,
@@ -750,30 +729,21 @@
                     };
 
                     try {
-                        if (this.editingTaskId) {
-                            await updateDoc(doc(db, 'tasks', this.editingTaskId), formattedData);
-                        } else {
+                        if (this.editingTaskId) await updateDoc(doc(db, 'tasks', this.editingTaskId), formattedData);
+                        else {
                             formattedData.createdAt = serverTimestamp();
                             await addDoc(tasksCollection, formattedData);
                         }
                         this.showModal = false;
-                        
-                        let [sy, sm] = this.newTask.startDate.split('-');
-                        this.currentYear = parseInt(sy, 10);
-                        this.currentMonth = parseInt(sm, 10) - 1;
-                    } catch (e) {
-                        alert("儲存發生異常，請確認網路狀態。");
-                        console.error(e);
-                    }
+                        let [sy, sm] = this.newTask.startDate.split('-'); this.currentYear = parseInt(sy, 10); this.currentMonth = parseInt(sm, 10) - 1;
+                    } catch (e) { alert("儲存發生異常，資料已暫存於本機。"); console.error(e); }
                 },
 
-                async syncData() { alert("系統已啟用自動即時同步，無須手動存檔！\n(斷線時會自動保存於本機，恢復連線後自動上傳)"); },
+                async syncData() { alert("已啟用 Firebase 原生快取技術！\n網路正常時：資料全自動即時同步。\n斷線時：操作自動保存在手機，恢復連線後自動上傳。"); },
 
                 getContractorColor(contractor) {
                     const fixedMap = { '和億': 'bg-blue-600', '富懋': 'bg-emerald-600', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
-                    if (!contractor) return 'bg-slate-400';
-                    let name = contractor.trim();
-                    if (fixedMap[name]) return fixedMap[name];
+                    if (!contractor) return 'bg-slate-400'; let name = contractor.trim(); if (fixedMap[name]) return fixedMap[name];
                     const fallbackColors = ['bg-pink-600', 'bg-teal-600', 'bg-fuchsia-600', 'bg-violet-600'];
                     let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
                     return fallbackColors[hash % fallbackColors.length];
@@ -821,8 +791,7 @@
                     let totalDays = parseInt(days, 10); let count = 1; 
                     while (count < totalDays) {
                         date.setDate(date.getDate() + 1); let dayOfWeek = date.getDay(); let isWorkDay = true;
-                        if (dayOfWeek === 6 && !incSat) isWorkDay = false; 
-                        if (dayOfWeek === 0 && !incSun) isWorkDay = false; 
+                        if (dayOfWeek === 6 && !incSat) isWorkDay = false; if (dayOfWeek === 0 && !incSun) isWorkDay = false; 
                         if (isWorkDay) count++;
                     }
                     let ey = date.getFullYear(); let em = String(date.getMonth() + 1).padStart(2, '0'); let ed = String(date.getDate()).padStart(2, '0');
@@ -832,9 +801,11 @@
                 loadMore() { this.visibleLimit += 10; },
                 hideCompletedTasks() { this.completedDaysVisible = 0; this.forcedVisibleTaskId = null; },
                 
-                scrollToTask(task) {
-                    if (this.isTaskCompleted(task)) { this.forcedVisibleTaskId = task.id; } 
-                    else {
+                async scrollToTask(task) {
+                    if (this.isTaskCompleted(task)) { 
+                        if (!this.historyFetched) await this.loadHistoryData();
+                        this.forcedVisibleTaskId = task.id; 
+                    } else {
                         const taskIndex = this.activeTasks.findIndex(t => t.id === task.id);
                         if (taskIndex !== -1 && taskIndex >= this.visibleLimit) this.visibleLimit = taskIndex + 5;
                     }
