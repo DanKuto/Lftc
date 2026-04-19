@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v22 (高效歷史跳轉版)</title>
+    <title>工程執行紀錄系統 v24 (日期防呆追蹤版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -370,7 +370,7 @@
     <script type="module">
         import { createApp, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBW2VjW1_mR7wbdAlAu3wTUOpHU6ZT62bo",
@@ -404,8 +404,12 @@
 
         createApp({
             data() {
+                // 💡 效能與防呆優化：直接取得本地端確切年、月、日，摒棄 toISOString() 造成的時區偏誤
                 const today = new Date();
-                const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                const y = today.getFullYear();
+                const m = String(today.getMonth() + 1).padStart(2, '0');
+                const d = String(today.getDate()).padStart(2, '0');
+                const todayStr = `${y}-${m}-${d}`;
 
                 return {
                     config: CONFIG,
@@ -420,7 +424,7 @@
                     sortBy: 'time', 
                     visibleLimit: 20, 
                     completedDaysVisible: 0, 
-                    forcedVisibleTaskId: null, // 💡 新增：用來記錄強制顯示的特定歷史工項
+                    forcedVisibleTaskId: null,
                     newTask: {
                         startDate: todayStr,
                         days: 1, 
@@ -472,51 +476,80 @@
                 },
 
                 visibleCompletedTasks() {
-                    // 💡 修改：判斷要顯示哪些歷史紀錄
                     let visibleList = [];
-                    
-                    // 如果有展開天數，就把該範圍內的撈出來
                     if (this.completedDaysVisible > 0) {
-                        let cutoffDate = new Date(this.todayStr);
+                        // 💡 效能與防呆優化：使用本地時間物件避免時區錯亂
+                        let [ty, tm, td] = this.todayStr.split('-');
+                        let cutoffDate = new Date(ty, tm - 1, td);
                         cutoffDate.setDate(cutoffDate.getDate() - this.completedDaysVisible);
-                        let cutoffStr = new Date(cutoffDate.getTime() - (cutoffDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                        let cy = cutoffDate.getFullYear();
+                        let cm = String(cutoffDate.getMonth() + 1).padStart(2, '0');
+                        let cd = String(cutoffDate.getDate()).padStart(2, '0');
+                        let cutoffStr = `${cy}-${cm}-${cd}`;
                         visibleList = this.completedTasks.filter(t => t.endDate >= cutoffStr);
                     }
 
-                    // 如果有「強制顯示」的任務，確保它在清單內
                     if (this.forcedVisibleTaskId) {
                         const forcedTask = this.completedTasks.find(t => t.id === this.forcedVisibleTaskId);
                         if (forcedTask && !visibleList.find(t => t.id === forcedTask.id)) {
-                            // 把它加到最上面
                             visibleList.unshift(forcedTask);
                         }
                     }
-
                     return visibleList;
                 },
 
+                // 💡 效能與防呆優化：Hash Map 取代巢狀迴圈，並嚴格解析日期格式
                 calendarDays() {
                     const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
                     const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+                    
+                    const taskMap = {};
+                    
+                    this.tasks.forEach(task => {
+                        if (!task.startDate || !task.endDate) return;
+                        
+                        let [sy, sm, sd] = task.startDate.split('-');
+                        let currentDate = new Date(sy, sm - 1, sd);
+                        
+                        let [ey, em, ed] = task.endDate.split('-');
+                        let endDate = new Date(ey, em - 1, ed);
+                        
+                        let maxDays = 100;
+                        let count = 0;
+                        
+                        while (currentDate <= endDate && count < maxDays) {
+                            let y = currentDate.getFullYear();
+                            let m = String(currentDate.getMonth() + 1).padStart(2, '0');
+                            let d = String(currentDate.getDate()).padStart(2, '0');
+                            let dateStr = `${y}-${m}-${d}`;
+                            
+                            let dayOfWeek = currentDate.getDay();
+                            let isWorkDay = true;
+                            if (dayOfWeek === 6 && !task.includeSaturday) isWorkDay = false;
+                            if (dayOfWeek === 0 && !task.includeSunday) isWorkDay = false;
+                            
+                            if (isWorkDay) {
+                                if (!taskMap[dateStr]) taskMap[dateStr] = [];
+                                taskMap[dateStr].push(task);
+                            }
+                            
+                            currentDate.setDate(currentDate.getDate() + 1);
+                            count++;
+                        }
+                    });
+
                     let days = [];
                     for (let i = 0; i < firstDay; i++) days.push({ day: null, dateStr: null, tasks: [] });
                     
                     for (let i = 1; i <= daysInMonth; i++) {
                         const dateStr = `${this.currentYear}-${String(this.currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-                        const d = new Date(dateStr);
+                        const d = new Date(this.currentYear, this.currentMonth, i);
                         const dayOfWeek = d.getDay();
                         
-                        let dailyTasks = this.tasks.filter(t => {
-                            if (!t.startDate || !t.endDate) return false;
-                            if (dateStr < t.startDate || dateStr > t.endDate) return false;
-                            if (dayOfWeek === 6 && !t.includeSaturday) return false;
-                            if (dayOfWeek === 0 && !t.includeSunday) return false;
-                            return true; 
-                        });
-
+                        let dailyTasks = taskMap[dateStr] ? [...taskMap[dateStr]] : [];
+                        
                         dailyTasks.sort((a, b) => {
-                            let cA = a.contractor || '';
-                            let cB = b.contractor || '';
+                            let cA = a.contractor || ''; let cB = b.contractor || '';
                             if (cA !== cB) return cA.localeCompare(cB);
                             return a.id.localeCompare(b.id);
                         });
@@ -552,19 +585,13 @@
                 },
 
                 canToggleComplete(task) {
-                    if (task.isCompleted) {
-                        return task.completedDate === this.todayStr; 
-                    } else {
-                        return !task.isSuspended; 
-                    }
+                    if (task.isCompleted) return task.completedDate === this.todayStr; 
+                    return !task.isSuspended; 
                 },
 
                 canToggleSuspend(task) {
-                    if (task.isSuspended) {
-                        return task.suspendDate === this.todayStr; 
-                    } else {
-                        return !task.isCompleted; 
-                    }
+                    if (task.isSuspended) return task.suspendDate === this.todayStr; 
+                    return !task.isCompleted; 
                 },
 
                 toggleCompleteStatus(task) {
@@ -576,11 +603,8 @@
                     if (index !== -1) {
                         this.tasks[index] = formattedData;
                         const existingAction = this.actionQueue.find(a => a.type === 'update' && a.id === task.id);
-                        if (existingAction) {
-                            existingAction.payload = formattedData;
-                        } else {
-                            this.actionQueue.push({ type: 'update', id: task.id, payload: formattedData });
-                        }
+                        if (existingAction) existingAction.payload = formattedData;
+                        else this.actionQueue.push({ type: 'update', id: task.id, payload: formattedData });
                         this.saveLocalState();
                     }
                 },
@@ -605,24 +629,16 @@
                     if (index !== -1) {
                         this.tasks[index] = formattedData;
                         const existingAction = this.actionQueue.find(a => a.type === 'update' && a.id === task.id);
-                        if (existingAction) {
-                            existingAction.payload = formattedData;
-                        } else {
-                            this.actionQueue.push({ type: 'update', id: task.id, payload: formattedData });
-                        }
+                        if (existingAction) existingAction.payload = formattedData;
+                        else this.actionQueue.push({ type: 'update', id: task.id, payload: formattedData });
                         this.saveLocalState();
                     }
                 },
 
                 getContractorColor(contractor) {
                     const fixedMap = { 
-                        '和億': 'bg-blue-600', 
-                        '富懋': 'bg-emerald-600', 
-                        '明辰': 'bg-rose-500', 
-                        '明凱': 'bg-amber-600', 
-                        '金鐠鑼': 'bg-purple-600',
-                        '領鋒': 'bg-cyan-600',
-                        '寰霈': 'bg-indigo-600'
+                        '和億': 'bg-blue-600', '富懋': 'bg-emerald-600', '明辰': 'bg-rose-500', 
+                        '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600'
                     };
                     if (!contractor) return 'bg-slate-400';
                     let name = contractor.trim();
@@ -636,9 +652,7 @@
                     let classes = [this.getContractorColor(task.contractor)];
                     
                     if (task.isSuspended) {
-                        if (dateStr <= task.suspendDate || dateStr < this.todayStr) {
-                            classes.push('grayscale opacity-60');
-                        }
+                        if (dateStr <= task.suspendDate || dateStr < this.todayStr) classes.push('grayscale opacity-60');
                     } else if (dateStr < this.todayStr || task.isCompleted) {
                         classes.push('grayscale opacity-60');
                     }
@@ -676,16 +690,27 @@
                     this.newTask.subItems = []; this.newTask.permits = [];
                     if (this.newTask.mainCategory === '物料運送') this.newTask.permits = ['車輛進廠放行單', '物料進出放行單'];
                 },
+                
+                // 💡 效能與防呆優化：手動運算工期，全面排除時區偏移風險
                 calculateEndDate(start, days, incSat, incSun) {
-                    let date = new Date(start); let totalDays = parseInt(days, 10); let count = 1; 
+                    let [y, m, d] = start.split('-');
+                    let date = new Date(y, m - 1, d);
+                    let totalDays = parseInt(days, 10); 
+                    let count = 1; 
                     while (count < totalDays) {
-                        date.setDate(date.getDate() + 1); let dayOfWeek = date.getDay(); let isWorkDay = true;
+                        date.setDate(date.getDate() + 1); 
+                        let dayOfWeek = date.getDay(); 
+                        let isWorkDay = true;
                         if (dayOfWeek === 6 && !incSat) isWorkDay = false; 
                         if (dayOfWeek === 0 && !incSun) isWorkDay = false; 
                         if (isWorkDay) count++;
                     }
-                    return new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                    let ey = date.getFullYear();
+                    let em = String(date.getMonth() + 1).padStart(2, '0');
+                    let ed = String(date.getDate()).padStart(2, '0');
+                    return `${ey}-${em}-${ed}`;
                 },
+                
                 saveTask() {
                     const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days, this.newTask.includeSaturday, this.newTask.includeSunday);
                     let locationString = this.newTask.locations.map(l => `${l.phase} ${l.building}${l.floor!=='無'?' '+l.floor:''}`).join(' / ');
@@ -721,12 +746,18 @@
                         this.tasks.unshift(newTask);
                         this.actionQueue.push({ type: 'add', localId: localId, payload: formattedData });
                     }
-                    this.saveLocalState(); this.showModal = false;
+                    this.saveLocalState(); 
+                    this.showModal = false;
+
+                    // 💡 體驗優化：儲存後，行事曆自動翻頁跳轉至該任務的所屬月份
+                    let [sy, sm] = this.newTask.startDate.split('-');
+                    this.currentYear = parseInt(sy, 10);
+                    this.currentMonth = parseInt(sm, 10) - 1;
                 },
                 
                 async fetchDataFromFirebase() {
                     try {
-                        const q = query(tasksCollection, orderBy('createdAt', 'desc'));
+                        const q = query(tasksCollection, orderBy('createdAt', 'desc'), limit(300));
                         const snapshot = await getDocs(q);
                         const fetchedTasks = [];
                         snapshot.forEach((doc) => { fetchedTasks.push({ id: doc.id, ...doc.data(), expanded: false }); });
@@ -752,19 +783,15 @@
                     this.visibleLimit += 10;
                 },
 
-                // 💡 新增：隱藏歷史紀錄時順便清除強制顯示的 ID
                 hideCompletedTasks() {
                     this.completedDaysVisible = 0;
                     this.forcedVisibleTaskId = null;
                 },
                 
                 scrollToTask(task) {
-                    // 💡 修改：如果是點擊已完工的歷史項目，改用強制顯示單一卡片的策略
                     if (this.isTaskCompleted(task)) {
                         this.forcedVisibleTaskId = task.id;
-                        // 不強制展開全部歷史，只靠 forcedVisibleTaskId 把他抓出來
                     } else {
-                        // 進行中的項目，檢查是否需要載入更多
                         const taskIndex = this.activeTasks.findIndex(t => t.id === task.id);
                         if (taskIndex !== -1 && taskIndex >= this.visibleLimit) {
                             this.visibleLimit = taskIndex + 5;
