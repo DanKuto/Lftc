@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v32 (極致瘦身乾淨版)</title>
+    <title>工程執行紀錄系統 v33 (極致省電調校版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -52,8 +52,8 @@
                         <div class="flex-grow space-y-[2px]">
                             <div v-for="task in day.tasks" 
                                  @click.stop="scrollToTask(task)"
-                                 class="text-[9px] py-0.5 px-1 truncate text-white font-bold transition-transform active:scale-95 cursor-pointer hover:opacity-90 shadow-sm" 
-                                 :class="getCalendarTaskStyles(task, day.dateStr)">
+                                 class="text-[9px] py-0.5 px-1 truncate text-white font-bold cursor-pointer hover:opacity-90 shadow-sm" 
+                                 :class="task._calendarClasses">
                                 {{ task.contractor || '未指定' }}: {{ task.mainCategory }}
                             </div>
                         </div>
@@ -140,7 +140,7 @@
                 </div>
 
                 <template v-for="(task, index) in visibleActiveTasks" :key="task.id">
-                    <div :id="'task-' + task.id" class="border border-cyan-600 rounded-xl shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-white">
+                    <div :id="'task-' + task.id" class="border border-cyan-600 rounded-xl shadow-sm overflow-hidden border-l-4 relative bg-white">
                         
                         <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
                             <div class="flex justify-between items-start">
@@ -167,7 +167,7 @@
                             </div>
                         </div>
                         
-                        <div v-show="task.expanded" class="p-3 border-t text-sm bg-gray-50 border-gray-100">
+                        <div v-if="task.expanded" class="p-3 border-t text-sm bg-gray-50 border-gray-100">
                             
                             <div v-if="task.remark" class="mb-3 text-xs p-2.5 rounded-lg bg-white text-gray-700 border border-gray-200 whitespace-pre-wrap shadow-sm">
                                 <span class="font-bold text-blue-800 block mb-1">📝 備註事項：</span>{{ task.remark }}
@@ -230,7 +230,7 @@
                         這段期間沒有歷史紀錄。
                     </div>
                     
-                    <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-slate-50 border-slate-300 opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0">
+                    <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden border-l-4 relative bg-slate-50 border-slate-300 opacity-80">
                         
                         <div v-if="forcedVisibleTaskId === task.id && completedDaysVisible === 0" class="bg-blue-100 text-blue-700 text-[10px] font-bold text-center py-1">
                             ⬇️ 從行事曆跳轉查看的歷史紀錄 ⬇️
@@ -259,7 +259,7 @@
                             </div>
                         </div>
                         
-                        <div v-show="task.expanded" class="p-3 border-t text-sm bg-slate-100 border-slate-200">
+                        <div v-if="task.expanded" class="p-3 border-t text-sm bg-slate-100 border-slate-200">
                             
                             <div v-if="task.isSuspended" class="mb-3 text-xs p-2.5 rounded-lg bg-rose-100 text-rose-800 border border-rose-200 font-bold shadow-sm">
                                 🛑 停工原因：{{ task.suspendReason }}
@@ -564,6 +564,7 @@
                     return visibleList;
                 },
 
+                // 💡 效能優化核心：行事曆生成時，一併把 CSS Class 算好存進去
                 calendarDays() {
                     const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
                     const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
@@ -584,7 +585,22 @@
                             
                             if (isWorkDay) {
                                 if (!taskMap[dateStr]) taskMap[dateStr] = [];
-                                taskMap[dateStr].push(task);
+                                
+                                // 💡 預先運算 CSS，免除畫面渲染時的負擔
+                                let baseColor = this.getContractorColor(task.contractor);
+                                let classes = baseColor + ' ';
+                                if (task.isSuspended) {
+                                    if (dateStr <= task.suspendDate || dateStr < this.todayStr) classes += 'grayscale opacity-60 ';
+                                } else if (dateStr < this.todayStr || task.isCompleted) {
+                                    classes += 'grayscale opacity-60 ';
+                                }
+
+                                if (dateStr === task.startDate && dateStr === task.endDate) classes += 'rounded-sm mx-0';
+                                else if (dateStr === task.startDate) classes += 'rounded-l-sm rounded-r-none ml-0 mr-[-2px]';
+                                else if (dateStr === task.endDate) classes += 'rounded-r-sm rounded-l-none mr-0 ml-[-2px]';
+                                else classes += 'rounded-none mx-[-2px]';
+
+                                taskMap[dateStr].push({ ...task, _calendarClasses: classes });
                             }
                             currentDate.setDate(currentDate.getDate() + 1); count++;
                         }
@@ -660,7 +676,6 @@
                 },
 
                 resetFilters() { this.filters = { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' }; },
-                isUnsynced() { return false; }, 
                 getLocations(task) { return task.locations && task.locations.length > 0 ? task.locations : [{ phase: 'P2', building: task.building, floor: task.floor }]; },
                 isTaskCompleted(task) { return task.isCompleted === true || task.isSuspended === true || this.isPast(task.endDate); },
                 canToggleComplete(task) { if (task.isCompleted) return task.completedDate === this.todayStr; return !task.isSuspended; },
@@ -721,19 +736,6 @@
                     const fallbackColors = ['bg-pink-600', 'bg-teal-600', 'bg-fuchsia-600', 'bg-violet-600'];
                     let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
                     return fallbackColors[hash % fallbackColors.length];
-                },
-                
-                getCalendarTaskStyles(task, dateStr) {
-                    let classes = [this.getContractorColor(task.contractor)];
-                    if (task.isSuspended) { if (dateStr <= task.suspendDate || dateStr < this.todayStr) classes.push('grayscale opacity-60'); } 
-                    else if (dateStr < this.todayStr || task.isCompleted) { classes.push('grayscale opacity-60'); }
-                    
-                    let isStart = dateStr === task.startDate; let isEnd = dateStr === task.endDate;
-                    if (isStart && isEnd) classes.push('rounded-sm mx-0');
-                    else if (isStart) classes.push('rounded-l-sm rounded-r-none ml-0 mr-[-2px]');
-                    else if (isEnd) classes.push('rounded-r-sm rounded-l-none mr-0 ml-[-2px]');
-                    else classes.push('rounded-none mx-[-2px]');
-                    return classes;
                 },
 
                 openNewModal() {
