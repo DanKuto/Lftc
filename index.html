@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v20 (精簡列表版)</title>
+    <title>工程執行紀錄系統 v21 (最終優化版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -88,7 +88,7 @@
                     目前尚無進行中工作。
                 </div>
 
-                <template v-for="(task, index) in activeTasks" :key="task.id">
+                <template v-for="(task, index) in visibleActiveTasks" :key="task.id">
                     <div :id="'task-' + task.id" class="border rounded-lg shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-white border-blue-500">
                         
                         <div v-if="isUnsynced(task.id)" class="absolute top-0 right-0 bg-amber-400 text-white text-[8px] px-1.5 py-0.5 rounded-bl-md font-bold">未同步</div>
@@ -155,13 +155,17 @@
                         </div>
                     </div>
 
-                    <div v-if="sortBy === 'time' && index < activeTasks.length - 1 && task.startDate !== activeTasks[index+1].startDate" 
+                    <div v-if="sortBy === 'time' && index < visibleActiveTasks.length - 1 && task.startDate !== visibleActiveTasks[index+1].startDate" 
                          class="my-5 border-b-[3px] border-dotted border-blue-200 relative">
                         <span class="absolute right-0 -top-2.5 bg-gray-50 text-blue-400 font-bold text-[9px] px-2 rounded-full border border-blue-100">
-                            {{ activeTasks[index+1].startDate }}
+                            {{ visibleActiveTasks[index+1].startDate }}
                         </span>
                     </div>
                 </template>
+
+                <button v-if="activeTasks.length > visibleLimit" @click="loadMore" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-blue-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
+                    載入更多進行中工項 (還有 {{ activeTasks.length - visibleLimit }} 筆) ▼
+                </button>
             </div>
 
             <div class="mt-8">
@@ -407,6 +411,7 @@
                     currentMonth: today.getMonth(),
                     todayStr: todayStr,
                     sortBy: 'time', 
+                    visibleLimit: 20, // 控制進行中工項的載入數量
                     completedDaysVisible: 0, 
                     newTask: {
                         startDate: todayStr,
@@ -444,6 +449,11 @@
                         }
                     });
                     return active;
+                },
+
+                // 限制顯示數量的計算屬性，減少 DOM 渲染
+                visibleActiveTasks() {
+                    return this.activeTasks.slice(0, this.visibleLimit);
                 },
                 
                 completedTasks() {
@@ -713,6 +723,10 @@
                         this.actionQueue = []; this.saveLocalState(); await this.fetchDataFromFirebase();
                     } catch (error) { alert("同步失敗，請檢查網路連線\n詳細錯誤：" + error.message); } 
                     finally { this.isSyncing = false; }
+                },
+
+                loadMore() {
+                    this.visibleLimit += 10;
                 },
                 
                 scrollToTask(task) {
