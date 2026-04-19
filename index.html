@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v29 (進階篩選與報表優化版)</title>
+    <title>工程執行紀錄系統 v30 (資料修復完美版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -71,9 +71,6 @@
                 </div>
                 <div v-show="showFilters" class="p-3 space-y-3">
                     <input type="text" v-model="filters.keyword" placeholder="輸入工項、地點或備註關鍵字..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <div v-if="!historyFetched && filters.keyword" class="text-[10px] text-amber-600 font-bold px-1">
-                        ⚠️ 目前僅搜尋進行中工項，欲搜尋歷史紀錄請至下方點擊「展開歷史紀錄」。
-                    </div>
                     
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <select v-model="filters.contractor" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -104,7 +101,7 @@
                     
                     <div class="flex gap-2 pt-2 border-t border-gray-100">
                         <button @click="resetFilters" class="w-1/3 bg-gray-100 text-gray-600 py-2 rounded-lg font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all">清除</button>
-                        <button @click="exportCSV" class="w-2/3 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
+                        <button @click="exportCSV" class="w-2/3 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-scale-95 transition-all">
                             <span class="mr-1">📊</span> 匯出結果 (CSV)
                         </button>
                     </div>
@@ -285,8 +282,7 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button @click="expandHistory" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95 flex items-center justify-center">
-                        <span v-if="isLoadingHistory" class="animate-spin mr-2">🔄</span>
+                    <button @click="completedDaysVisible += 7" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95">
                         展開歷史紀錄 (載入7天) ▼
                     </button>
                     <button v-if="completedDaysVisible > 0 || forcedVisibleTaskId !== null" @click="hideCompletedTasks" class="shrink-0 py-3 px-4 bg-slate-200 text-slate-600 rounded-xl font-black text-sm hover:bg-slate-300 transition-colors active:scale-95 shadow-sm">
@@ -417,7 +413,7 @@
     <script type="module">
         import { createApp, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBW2VjW1_mR7wbdAlAu3wTUOpHU6ZT62bo",
@@ -462,10 +458,8 @@
 
                 return {
                     config: CONFIG,
-                    localTasks: [], 
+                    tasks: [], // 💡 修復變數名稱，統一使用 tasks
                     isOnline: navigator.onLine,
-                    isLoadingHistory: false,
-                    historyFetched: false,
                     showModal: false,
                     editingTaskId: null,
                     currentYear: today.getFullYear(),
@@ -499,11 +493,12 @@
                 },
 
                 filteredTasks() {
-                    return this.localTasks.filter(t => {
+                    return this.tasks.filter(t => {
                         let isCompleted = this.isTaskCompleted(t);
                         if (this.filters.status === 'active' && isCompleted) return false;
                         if (this.filters.status === 'completed' && !isCompleted) return false;
 
+                        // 💡 日期篩選，只要有涵蓋在工期內就算
                         if (this.filters.date) {
                             if (this.filters.date < t.startDate || this.filters.date > t.endDate) return false;
                         }
@@ -612,32 +607,47 @@
             mounted() {
                 window.addEventListener('online', () => this.isOnline = true);
                 window.addEventListener('offline', () => this.isOnline = false);
-                
-                // 恢復為全量即時監聽（加上數量上限防暴走）
-                const q = query(tasksCollection, orderBy('createdAt', 'desc'));
+
+                // 💡 1. 啟動時先載入本地備用資料 (確保即使離線也能秒開畫面)
+                try {
+                    const savedTasks = localStorage.getItem('site_tasks');
+                    if (savedTasks && savedTasks !== "undefined") {
+                        this.tasks = JSON.parse(savedTasks);
+                    }
+                } catch(e) {}
+
+                // 💡 2. 徹底拔除 orderBy 和 limit，確保即使舊資料沒有 createdAt 也不會被隱藏
+                const q = query(tasksCollection);
                 onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
                     const fetchedTasks = [];
                     snapshot.forEach((doc) => { 
-                        fetchedTasks.push({ id: doc.id, ...doc.data(), expanded: false }); 
+                        // 保留展開狀態
+                        const existingTask = this.tasks.find(t => t.id === doc.id);
+                        fetchedTasks.push({ 
+                            id: doc.id, 
+                            ...doc.data(), 
+                            expanded: existingTask ? existingTask.expanded : false 
+                        }); 
                     });
-                    this.localTasks = fetchedTasks;
-                    this.historyFetched = true; // 因為已經是全量撈取，所以標記歷史已就緒
+                    this.tasks = fetchedTasks;
+                    this.saveLocalState();
                 }, (error) => { console.error("即時連線錯誤:", error); });
             },
             methods: {
+                saveLocalState() {
+                    localStorage.setItem('site_tasks', JSON.stringify(this.tasks));
+                },
+
                 exportCSV() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
                     
-                    // 1. 優先從開始時間排序
                     let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
                     
-                    // 2. 所有狀態下，匯出上限為 150 筆防呆
                     if (this.filters.status === 'all' && exportList.length > 150) {
                         alert('「所有狀態」下匯出數量限制為 150 筆，系統已自動截取最早的 150 筆資料。\n如需匯出更多，請嘗試縮小日期或包商範圍。');
                         exportList = exportList.slice(0, 150);
                     }
 
-                    // 3. 欄位順序調整：應辦申請單排在備註的右邊
                     let csvContent = '\uFEFF工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,備註,應辦申請單,停工原因\n';
                     
                     exportList.forEach(t => {
@@ -668,12 +678,14 @@
                 canToggleSuspend(task) { if (task.isSuspended) return task.suspendDate === this.todayStr; return !task.isCompleted; },
 
                 async toggleCompleteStatus(task) {
-                    let isCompleted = !task.isCompleted; let completedDate = isCompleted ? this.todayStr : null;
+                    let isCompleted = !task.isCompleted; 
+                    let completedDate = isCompleted ? this.todayStr : null;
                     try { await updateDoc(doc(db, 'tasks', task.id), { isCompleted, completedDate }); } catch (e) { console.error(e); }
                 },
 
                 async toggleSuspendStatus(task) {
-                    let isSuspended = !task.isSuspended; let suspendReason = null; let suspendDate = null;
+                    let isSuspended = !task.isSuspended; 
+                    let suspendReason = null; let suspendDate = null;
                     let isCompleted = task.isCompleted; let completedDate = task.completedDate;
                     if (isSuspended) {
                         let reason = prompt("請輸入停工原因："); if (!reason || reason.trim() === "") return; 
@@ -711,7 +723,7 @@
                         }
                         this.showModal = false;
                         let [sy, sm] = this.newTask.startDate.split('-'); this.currentYear = parseInt(sy, 10); this.currentMonth = parseInt(sm, 10) - 1;
-                    } catch (e) { alert("請檢查網路。"); console.error(e); }
+                    } catch (e) { alert("儲存異常，請檢查網路。"); console.error(e); }
                 },
 
                 async syncData() { alert("已啟用 Firebase 原生快取技術！\n資料全自動即時同步，斷線時會自動保存於本機。"); },
@@ -773,17 +785,12 @@
                     return `${ey}-${em}-${ed}`;
                 },
 
-                async expandHistory() {
-                    this.completedDaysVisible += 7;
-                },
-
                 loadMore() { this.visibleLimit += 10; },
                 hideCompletedTasks() { this.completedDaysVisible = 0; this.forcedVisibleTaskId = null; },
                 
-                async scrollToTask(task) {
-                    if (this.isTaskCompleted(task)) { 
-                        this.forcedVisibleTaskId = task.id; 
-                    } else {
+                scrollToTask(task) {
+                    if (this.isTaskCompleted(task)) { this.forcedVisibleTaskId = task.id; } 
+                    else {
                         const taskIndex = this.activeTasks.findIndex(t => t.id === task.id);
                         if (taskIndex !== -1 && taskIndex >= this.visibleLimit) this.visibleLimit = taskIndex + 5;
                     }
