@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v27 (原生快取與分離抓取版)</title>
+    <title>工程執行紀錄系統 v28 (行事曆完整顯示版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -71,9 +71,6 @@
                 </div>
                 <div v-show="showFilters" class="p-3 space-y-3">
                     <input type="text" v-model="filters.keyword" placeholder="輸入工項、地點或備註關鍵字..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <div v-if="!historyFetched && filters.keyword" class="text-[10px] text-amber-600 font-bold px-1">
-                        ⚠️ 目前僅搜尋進行中工項，欲搜尋歷史紀錄請至下方點擊「展開歷史紀錄」。
-                    </div>
                     
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <select v-model="filters.contractor" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -99,7 +96,7 @@
                     <div class="flex gap-2 pt-2 border-t border-gray-100">
                         <button @click="resetFilters" class="w-1/3 bg-gray-100 text-gray-600 py-2 rounded-lg font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all">清除</button>
                         <button @click="exportCSV" class="w-2/3 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
-                            <span class="mr-1">📊</span> 匯出篩選結果 (CSV)
+                            <span class="mr-1">📊</span> 匯出結果 (CSV)
                         </button>
                     </div>
                 </div>
@@ -211,15 +208,11 @@
             <div class="mt-8">
                 <div class="flex items-center space-x-2 mb-4">
                     <hr class="flex-grow border-slate-300">
-                    <span class="text-xs font-bold text-slate-400">已完工與停工紀錄 (按需載入)</span>
+                    <span class="text-xs font-bold text-slate-400">已完工與停工紀錄 (自動隱藏)</span>
                     <hr class="flex-grow border-slate-300">
                 </div>
 
                 <div v-if="completedDaysVisible > 0 || visibleCompletedTasks.length > 0" class="space-y-4 mb-4">
-                    
-                    <div v-if="visibleCompletedTasks.length === 0 && historyFetched" class="text-center text-gray-400 text-sm py-6 bg-white rounded-xl border border-dashed border-gray-300">
-                        這段期間沒有歷史紀錄。
-                    </div>
                     
                     <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-slate-50 border-slate-300 opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0">
                         
@@ -279,8 +272,7 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button @click="expandHistory" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95 flex items-center justify-center">
-                        <span v-if="isLoadingHistory" class="animate-spin mr-2">🔄</span>
+                    <button @click="completedDaysVisible += 7" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95">
                         展開歷史紀錄 (載入7天) ▼
                     </button>
                     <button v-if="completedDaysVisible > 0 || forcedVisibleTaskId !== null" @click="hideCompletedTasks" class="shrink-0 py-3 px-4 bg-slate-200 text-slate-600 rounded-xl font-black text-sm hover:bg-slate-300 transition-colors active:scale-95 shadow-sm">
@@ -411,7 +403,7 @@
     <script type="module">
         import { createApp, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy, limit, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBW2VjW1_mR7wbdAlAu3wTUOpHU6ZT62bo",
@@ -425,7 +417,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
-        // 💡 1. 啟用原生 IndexedDB 離線快取
         enableIndexedDbPersistence(db).catch((err) => { console.warn("無法啟用離線快取:", err); });
 
         const tasksCollection = collection(db, 'tasks');
@@ -457,10 +448,8 @@
 
                 return {
                     config: CONFIG,
-                    localTasks: [], // 單一資料源
+                    localTasks: [], 
                     isOnline: navigator.onLine,
-                    isLoadingHistory: false,
-                    historyFetched: false,
                     showModal: false,
                     editingTaskId: null,
                     currentYear: today.getFullYear(),
@@ -556,7 +545,6 @@
                     return visibleList;
                 },
 
-                // 💡 效能升級：使用 Hash Map 渲染行事曆，不延遲
                 calendarDays() {
                     const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
                     const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
@@ -604,65 +592,17 @@
             mounted() {
                 window.addEventListener('online', () => this.isOnline = true);
                 window.addEventListener('offline', () => this.isOnline = false);
-                this.setupRealtimeSync();
+                // 💡 恢復抓取全部(含歷史)的設計，確保行事曆完整，上限300筆防記憶體溢出
+                const q = query(tasksCollection, orderBy('createdAt', 'desc'), limit(300));
+                onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
+                    const fetchedTasks = [];
+                    snapshot.forEach((doc) => { 
+                        fetchedTasks.push({ id: doc.id, ...doc.data(), expanded: false }); 
+                    });
+                    this.localTasks = fetchedTasks;
+                }, (error) => { console.error("即時連線錯誤:", error); });
             },
             methods: {
-                // 💡 2. 分離抓取核心：這裡「只監聽」未完工的資料 (極低流量)
-                setupRealtimeSync() {
-                    const qActive = query(tasksCollection, where("isCompleted", "==", false));
-                    onSnapshot(qActive, { includeMetadataChanges: true }, (snapshot) => {
-                        snapshot.docChanges().forEach((change) => {
-                            const taskData = { id: change.doc.id, ...change.doc.data() };
-                            if (change.type === "added" || change.type === "modified") {
-                                const idx = this.localTasks.findIndex(t => t.id === taskData.id);
-                                if (idx !== -1) {
-                                    taskData.expanded = this.localTasks[idx].expanded;
-                                    this.localTasks.splice(idx, 1, taskData);
-                                } else {
-                                    taskData.expanded = false;
-                                    this.localTasks.push(taskData);
-                                }
-                            }
-                            if (change.type === "removed") {
-                                // 如果是因為標記完工而脫離 Query，保留在本地歷史區；如果是真的刪除，則移除
-                                if (taskData.isCompleted) {
-                                    const idx = this.localTasks.findIndex(t => t.id === taskData.id);
-                                    if (idx !== -1) this.localTasks.splice(idx, 1, taskData);
-                                } else {
-                                    this.localTasks = this.localTasks.filter(t => t.id !== taskData.id);
-                                }
-                            }
-                        });
-                    }, (error) => { console.error("即時連線錯誤:", error); });
-                },
-
-                // 💡 2. 歷史資料按需抓取 (One-time fetch)
-                async loadHistoryData() {
-                    if (this.historyFetched || this.isLoadingHistory) return;
-                    this.isLoadingHistory = true;
-                    try {
-                        const qHistory = query(tasksCollection, where("isCompleted", "==", true));
-                        const snapshot = await getDocs(qHistory);
-                        snapshot.forEach(doc => {
-                            const taskData = { id: doc.id, ...doc.data(), expanded: false };
-                            if (!this.localTasks.some(t => t.id === taskData.id)) {
-                                this.localTasks.push(taskData);
-                            }
-                        });
-                        this.historyFetched = true;
-                    } catch(e) {
-                        console.error("載入歷史失敗", e);
-                    } finally {
-                        this.isLoadingHistory = false;
-                    }
-                },
-
-                async expandHistory() {
-                    await this.loadHistoryData();
-                    this.completedDaysVisible += 7;
-                },
-
-                // 💡 3. CSV 報表匯出功能
                 exportCSV() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
                     let csvContent = '\uFEFF工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,應辦申請單,備註,停工原因\n';
@@ -682,17 +622,14 @@
                 },
 
                 resetFilters() { this.filters = { keyword: '', contractor: '', manager: '', phase: '', status: 'all' }; },
-                isUnsynced() { return false; }, // 由 Firebase 原生接管，不再需要顯示未同步
+                isUnsynced() { return false; }, 
                 getLocations(task) { return task.locations && task.locations.length > 0 ? task.locations : [{ phase: 'P2', building: task.building, floor: task.floor }]; },
                 isTaskCompleted(task) { return task.isCompleted === true || task.isSuspended === true || this.isPast(task.endDate); },
                 canToggleComplete(task) { if (task.isCompleted) return task.completedDate === this.todayStr; return !task.isSuspended; },
                 canToggleSuspend(task) { if (task.isSuspended) return task.suspendDate === this.todayStr; return !task.isCompleted; },
 
-                // Firebase 互動直接寫入 (底層會處理離線快取)
                 async toggleCompleteStatus(task) {
                     let isCompleted = !task.isCompleted; let completedDate = isCompleted ? this.todayStr : null;
-                    // 先在本地做視覺暫存以防畫面消失
-                    if (isCompleted && !this.localTasks.some(t => t.id === task.id)) this.localTasks.unshift({ ...task, isCompleted, completedDate });
                     try { await updateDoc(doc(db, 'tasks', task.id), { isCompleted, completedDate }); } catch (e) { console.error(e); }
                 },
 
@@ -708,7 +645,6 @@
 
                 async confirmDelete(task) {
                     if (confirm(`確定要刪除「${task.mainCategory}」嗎？`)) {
-                        this.localTasks = this.localTasks.filter(t => t.id !== task.id);
                         try { await deleteDoc(doc(db, 'tasks', task.id)); } catch (e) { console.error(e); }
                     }
                 },
@@ -736,10 +672,10 @@
                         }
                         this.showModal = false;
                         let [sy, sm] = this.newTask.startDate.split('-'); this.currentYear = parseInt(sy, 10); this.currentMonth = parseInt(sm, 10) - 1;
-                    } catch (e) { alert("儲存發生異常，資料已暫存於本機。"); console.error(e); }
+                    } catch (e) { alert("請檢查網路。"); console.error(e); }
                 },
 
-                async syncData() { alert("已啟用 Firebase 原生快取技術！\n網路正常時：資料全自動即時同步。\n斷線時：操作自動保存在手機，恢復連線後自動上傳。"); },
+                async syncData() { alert("已啟用 Firebase 原生快取技術！\n資料全自動即時同步，斷線時會自動保存於本機。"); },
 
                 getContractorColor(contractor) {
                     const fixedMap = { '和億': 'bg-blue-600', '富懋': 'bg-emerald-600', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
@@ -801,11 +737,9 @@
                 loadMore() { this.visibleLimit += 10; },
                 hideCompletedTasks() { this.completedDaysVisible = 0; this.forcedVisibleTaskId = null; },
                 
-                async scrollToTask(task) {
-                    if (this.isTaskCompleted(task)) { 
-                        if (!this.historyFetched) await this.loadHistoryData();
-                        this.forcedVisibleTaskId = task.id; 
-                    } else {
+                scrollToTask(task) {
+                    if (this.isTaskCompleted(task)) { this.forcedVisibleTaskId = task.id; } 
+                    else {
                         const taskIndex = this.activeTasks.findIndex(t => t.id === task.id);
                         if (taskIndex !== -1 && taskIndex >= this.visibleLimit) this.visibleLimit = taskIndex + 5;
                     }
