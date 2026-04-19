@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v31 (日期區間篩選版)</title>
+    <title>工程執行紀錄系統 v32 (極致瘦身乾淨版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -71,9 +71,6 @@
                 </div>
                 <div v-show="showFilters" class="p-3 space-y-3">
                     <input type="text" v-model="filters.keyword" placeholder="輸入工項、地點或備註關鍵字..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <div v-if="!historyFetched && filters.keyword" class="text-[10px] text-amber-600 font-bold px-1">
-                        ⚠️ 目前僅搜尋進行中工項，欲搜尋歷史紀錄請至下方點擊「展開歷史紀錄」。
-                    </div>
                     
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <select v-model="filters.contractor" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -479,7 +476,6 @@
                     completedDaysVisible: 0, 
                     forcedVisibleTaskId: null,
                     showFilters: false,
-                    // 💡 修改：將單一 date 改為 startDate 和 endDate
                     filters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
                     newTask: {
                         startDate: todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
@@ -508,10 +504,7 @@
                         if (this.filters.status === 'active' && isCompleted) return false;
                         if (this.filters.status === 'completed' && !isCompleted) return false;
 
-                        // 💡 升級：日期區間交集比對
-                        // 若任務的結束日比篩選的開始日早，代表沒涵蓋
                         if (this.filters.startDate && t.endDate < this.filters.startDate) return false;
-                        // 若任務的開始日比篩選的到期日晚，代表沒涵蓋
                         if (this.filters.endDate && t.startDate > this.filters.endDate) return false;
 
                         if (this.filters.contractor && t.contractor !== this.filters.contractor) return false;
@@ -619,13 +612,6 @@
                 window.addEventListener('online', () => this.isOnline = true);
                 window.addEventListener('offline', () => this.isOnline = false);
 
-                try {
-                    const savedTasks = localStorage.getItem('site_tasks');
-                    if (savedTasks && savedTasks !== "undefined") {
-                        this.tasks = JSON.parse(savedTasks);
-                    }
-                } catch(e) {}
-
                 const q = query(tasksCollection);
                 onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
                     const fetchedTasks = [];
@@ -638,27 +624,19 @@
                         }); 
                     });
                     this.tasks = fetchedTasks;
-                    this.saveLocalState();
                 }, (error) => { console.error("即時連線錯誤:", error); });
             },
             methods: {
-                saveLocalState() {
-                    localStorage.setItem('site_tasks', JSON.stringify(this.tasks));
-                },
-
                 exportCSV() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
                     
-                    // 💡 1. 優先從開始時間排序
                     let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
                     
-                    // 💡 2. 所有狀態下匯出上限為 150 筆防呆
                     if (this.filters.status === 'all' && exportList.length > 150) {
                         alert('「所有狀態」下匯出數量限制為 150 筆，系統已自動為您截取最早建立的 150 筆資料。\n如需精準匯出，請嘗試縮小日期或包商範圍。');
                         exportList = exportList.slice(0, 150);
                     }
 
-                    // 💡 3. CSV 欄位重排：應辦申請單排在備註的右邊
                     let csvContent = '\uFEFF工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,備註,應辦申請單,停工原因\n';
                     
                     exportList.forEach(t => {
@@ -737,8 +715,6 @@
                     } catch (e) { alert("儲存異常，請檢查網路。"); console.error(e); }
                 },
 
-                async syncData() { alert("已啟用 Firebase 原生快取技術！\n資料全自動即時同步，斷線時會自動保存於本機。"); },
-
                 getContractorColor(contractor) {
                     const fixedMap = { '和億': 'bg-blue-600', '富懋': 'bg-emerald-600', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
                     if (!contractor) return 'bg-slate-400'; let name = contractor.trim(); if (fixedMap[name]) return fixedMap[name];
@@ -746,8 +722,7 @@
                     let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
                     return fallbackColors[hash % fallbackColors.length];
                 },
-                getTaskBorderColor(contractor) { const c = this.getContractorColor(contractor); return c.replace('bg-', 'border-'); },
-
+                
                 getCalendarTaskStyles(task, dateStr) {
                     let classes = [this.getContractorColor(task.contractor)];
                     if (task.isSuspended) { if (dateStr <= task.suspendDate || dateStr < this.todayStr) classes.push('grayscale opacity-60'); } 
