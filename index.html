@@ -128,7 +128,7 @@
                 </div>
 
                 <template v-for="(task, index) in visibleActiveTasks" :key="task.id">
-                    <div :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-white" :class="getTaskBorderColor(task.contractor)">
+                    <div :id="'task-' + task.id" class="border border-cyan-600 rounded-xl shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-white">
                         
                         <div class="p-3 cursor-pointer" @click="task.expanded = !task.expanded">
                             <div class="flex justify-between items-start">
@@ -200,7 +200,7 @@
                     </div>
                 </template>
 
-                <button v-if="activeTasks.length > visibleLimit" @click="visibleLimit += 10" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-blue-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
+                <button v-if="activeTasks.length > visibleLimit" @click="loadMore" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-blue-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
                     載入更多進行中工項 (還有 {{ activeTasks.length - visibleLimit }} 筆) ▼
                 </button>
             </div>
@@ -213,6 +213,10 @@
                 </div>
 
                 <div v-if="completedDaysVisible > 0 || visibleCompletedTasks.length > 0" class="space-y-4 mb-4">
+                    
+                    <div v-if="visibleCompletedTasks.length === 0" class="text-center text-gray-400 text-sm py-6 bg-white rounded-xl border border-dashed border-gray-300">
+                        這段期間沒有歷史紀錄。
+                    </div>
                     
                     <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden border-l-4 transition-all duration-300 relative bg-slate-50 border-slate-300 opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0">
                         
@@ -254,7 +258,7 @@
                             </div>
 
                             <div class="flex flex-wrap gap-1 mb-3">
-                                <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[10px] px-2 py-0.5 rounded">{{ sub }}</span>
+                                <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[10px] px-2 py-0.5 rounded shadow-sm">{{ sub }}</span>
                             </div>
                             <div class="mt-3 flex justify-between items-center border-t border-slate-300 pt-3">
                                 <div class="flex gap-2">
@@ -592,7 +596,6 @@
             mounted() {
                 window.addEventListener('online', () => this.isOnline = true);
                 window.addEventListener('offline', () => this.isOnline = false);
-                // 💡 恢復抓取全部(含歷史)的設計，確保行事曆完整，上限300筆防記憶體溢出
                 const q = query(tasksCollection, orderBy('createdAt', 'desc'), limit(300));
                 onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
                     const fetchedTasks = [];
@@ -684,8 +687,7 @@
                     let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
                     return fallbackColors[hash % fallbackColors.length];
                 },
-                getTaskBorderColor(contractor) { const c = this.getContractorColor(contractor); return c.replace('bg-', 'border-'); },
-
+                
                 getCalendarTaskStyles(task, dateStr) {
                     let classes = [this.getContractorColor(task.contractor)];
                     if (task.isSuspended) { if (dateStr <= task.suspendDate || dateStr < this.todayStr) classes.push('grayscale opacity-60'); } 
