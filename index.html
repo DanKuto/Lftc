@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v18 (備註功能版)</title>
+    <title>工程執行紀錄系統 v19 (新增包商版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -385,7 +385,8 @@
         const CONFIG = {
             buildings: ['FAB', 'CUP', 'OFFICE', 'SUP', '倉庫'],
             floors: ['LB1', 'LB2', 'L10', 'L20', 'L30', 'L40', 'L50', 'L60', 'L70', 'LR1', 'LR2'],
-            contractors: ['和億', '富懋', '明辰', '明凱', '金鐠鑼'],
+            // 💡 已將 領鋒 寰霈 加入清單
+            contractors: ['和億', '富懋', '明辰', '明凱', '金鐠鑼', '領鋒', '寰霈'],
             managers: ['N/A', '睿智', '昱凱', '國展', '旭承', '香雲', '玉琳', '怡霈', '承憲', '庭綺', '語宸'],
             categories: {
                 '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'],
@@ -425,7 +426,7 @@
                         includeSaturday: false,
                         includeSunday: false,
                         mainCategory: '',
-                        remark: '', // 💡 新增備註狀態
+                        remark: '', 
                         subItems: [],
                         permits: []
                     }
@@ -590,11 +591,20 @@
                 },
 
                 getContractorColor(contractor) {
-                    const fixedMap = { '和億': 'bg-blue-600', '富懋': 'bg-emerald-600', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600' };
+                    // 💡 新增 領鋒 與 寰霈 的專屬顏色配置
+                    const fixedMap = { 
+                        '和億': 'bg-blue-600', 
+                        '富懋': 'bg-emerald-600', 
+                        '明辰': 'bg-rose-500', 
+                        '明凱': 'bg-amber-600', 
+                        '金鐠鑼': 'bg-purple-600',
+                        '領鋒': 'bg-cyan-600',
+                        '寰霈': 'bg-indigo-600'
+                    };
                     if (!contractor) return 'bg-slate-400';
                     let name = contractor.trim();
                     if (fixedMap[name]) return fixedMap[name];
-                    const fallbackColors = ['bg-cyan-600', 'bg-pink-600', 'bg-indigo-600', 'bg-teal-600'];
+                    const fallbackColors = ['bg-pink-600', 'bg-teal-600', 'bg-fuchsia-600', 'bg-violet-600'];
                     let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
                     return fallbackColors[hash % fallbackColors.length];
                 },
