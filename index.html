@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v19 (新增包商版)</title>
+    <title>工程執行紀錄系統 v20 (精簡列表版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -120,14 +120,6 @@
                         
                         <div v-show="task.expanded" class="p-3 border-t text-sm bg-gray-50 border-gray-100">
                             
-                            <div class="mb-3 text-xs">
-                                <span class="text-gray-500">假日施工：</span>
-                                <span v-if="task.includeSaturday && task.includeSunday" class="text-red-500 font-bold">六、日</span>
-                                <span v-else-if="task.includeSaturday" class="text-red-500 font-bold">週六</span>
-                                <span v-else-if="task.includeSunday" class="text-red-500 font-bold">週日</span>
-                                <span v-else>無</span>
-                            </div>
-
                             <div v-if="task.remark" class="mb-3 text-xs p-2 rounded bg-white text-gray-700 border border-gray-200 whitespace-pre-wrap shadow-sm">
                                 <span class="font-bold text-blue-800">📝 備註：</span><br>{{ task.remark }}
                             </div>
@@ -385,8 +377,7 @@
         const CONFIG = {
             buildings: ['FAB', 'CUP', 'OFFICE', 'SUP', '倉庫'],
             floors: ['LB1', 'LB2', 'L10', 'L20', 'L30', 'L40', 'L50', 'L60', 'L70', 'LR1', 'LR2'],
-            // 💡 已將 領鋒 寰霈 加入清單
-            contractors: ['和億', '富懋', '明辰', '明凱', '金鐠鑼', '領鋒', '寰霈'],
+            contractors: ['領鋒', '和億', '富懋', '明辰', '明凱', '寰霈', '金鐠鑼'],
             managers: ['N/A', '睿智', '昱凱', '國展', '旭承', '香雲', '玉琳', '怡霈', '承憲', '庭綺', '語宸'],
             categories: {
                 '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'],
@@ -591,7 +582,6 @@
                 },
 
                 getContractorColor(contractor) {
-                    // 💡 新增 領鋒 與 寰霈 的專屬顏色配置
                     const fixedMap = { 
                         '和億': 'bg-blue-600', 
                         '富懋': 'bg-emerald-600', 
