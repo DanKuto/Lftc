@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v25 (即時同步與報表篩選版)</title>
+    <title>工程執行紀錄系統 v26 (預設全狀態版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -420,9 +420,8 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
-        // 💡 1. 啟用原生的離線資料庫！把複雜的同步問題交給 Firebase
         enableIndexedDbPersistence(db).catch((err) => {
-            console.warn("無法啟用離線快取 (可能開啟了多個分頁或瀏覽器不支援):", err);
+            console.warn("無法啟用離線快取:", err);
         });
 
         const tasksCollection = collection(db, 'tasks');
@@ -465,13 +464,13 @@
                     visibleLimit: 20, 
                     completedDaysVisible: 0, 
                     forcedVisibleTaskId: null,
-                    showFilters: false, // 💡 新增：控制篩選面板展開
-                    filters: { // 💡 2. 新增：篩選器狀態
+                    showFilters: false,
+                    filters: {
                         keyword: '',
                         contractor: '',
                         manager: '',
                         phase: '',
-                        status: 'active' // 預設看進行中
+                        status: 'all' // 💡 修改：預設改為所有狀態
                     },
                     newTask: {
                         startDate: todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
@@ -488,36 +487,29 @@
                     return ['一般施工單', '變電站申請', '離架申請', '天花板申請', '重物移入申請']; 
                 },
 
-                // 判斷是否有套用篩選條件 (控制 UI 顯示)
                 hasActiveFilters() {
                     return this.filters.keyword !== '' || this.filters.contractor !== '' || 
                            this.filters.manager !== '' || this.filters.phase !== '' || 
                            this.filters.status !== 'all';
                 },
 
-                // 💡 2. 核心大腦：所有資料先經過這個「超級篩選器」過濾
                 filteredTasks() {
                     return this.tasks.filter(t => {
-                        // 狀態篩選
                         let isCompleted = this.isTaskCompleted(t);
                         if (this.filters.status === 'active' && isCompleted) return false;
                         if (this.filters.status === 'completed' && !isCompleted) return false;
 
-                        // 包商篩選
                         if (this.filters.contractor && t.contractor !== this.filters.contractor) return false;
 
-                        // 管理職篩選
                         if (this.filters.manager) {
                             if (!t.managers || !t.managers.includes(this.filters.manager)) return false;
                         }
 
-                        // 廠區 (P1/P2) 篩選
                         if (this.filters.phase) {
                             let locs = this.getLocations(t);
                             if (!locs.some(l => l.phase === this.filters.phase)) return false;
                         }
 
-                        // 關鍵字搜尋 (找工項、地點、備註)
                         if (this.filters.keyword) {
                             const kw = this.filters.keyword.toLowerCase();
                             const matchText = `${t.mainCategory} ${t.location} ${t.remark || ''} ${t.contractor || ''}`.toLowerCase();
@@ -528,7 +520,6 @@
                     });
                 },
                 
-                // 以下的三個列表，全部改吃 filteredTasks 篩選後的結果！
                 activeTasks() {
                     let active = this.filteredTasks.filter(t => !this.isTaskCompleted(t));
                     active.sort((a, b) => {
@@ -553,7 +544,6 @@
 
                 visibleCompletedTasks() {
                     let visibleList = [];
-                    // 在搜尋狀態下，若有輸入關鍵字或篩選，主動展示所有符合的歷史紀錄，不受天數限制
                     if (this.hasActiveFilters && this.filters.status !== 'active') {
                         visibleList = this.completedTasks;
                     } else if (this.completedDaysVisible > 0) {
@@ -576,7 +566,6 @@
                     return visibleList;
                 },
 
-                // 行事曆也改吃篩選後的結果，實現超強連動！
                 calendarDays() {
                     const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
                     const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
@@ -638,11 +627,9 @@
                 }
             },
             mounted() {
-                // 初始化即時連線！
                 this.setupRealtimeSync();
             },
             methods: {
-                // 💡 1. 啟動 Firebase 即時監聽，拔除手寫的 queue！
                 setupRealtimeSync() {
                     const q = query(tasksCollection, orderBy('createdAt', 'desc'), limit(500));
                     onSnapshot(q, (snapshot) => {
@@ -656,13 +643,12 @@
                     });
                 },
 
-                // 💡 3. 新增 CSV 匯出功能
                 exportCSV() {
                     if (this.filteredTasks.length === 0) {
                         return alert('目前沒有篩選出任何資料可供匯出！');
                     }
                     
-                    let csvContent = '\uFEFF'; // 加入 BOM 以支援 Excel 中文顯示
+                    let csvContent = '\uFEFF'; 
                     csvContent += '工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,應辦申請單,備註,停工原因\n';
                     
                     this.filteredTasks.forEach(t => {
@@ -675,10 +661,9 @@
                         let category = t.mainCategory || '';
                         let subItems = (t.subItems || []).join('、');
                         let permits = (t.permits || []).join('、');
-                        let remark = (t.remark || '').replace(/\n/g, ' '); // 換行轉空格避免 CSV 跑版
+                        let remark = (t.remark || '').replace(/\n/g, ' '); 
                         let suspendReason = (t.suspendReason || '').replace(/\n/g, ' ');
 
-                        // 處理多地點的字串拆解
                         let locs = this.getLocations(t);
                         let phases = locs.map(l => l.phase).join('、');
                         let buildings = locs.map(l => l.building).join('、');
@@ -703,7 +688,7 @@
                     this.filters = { keyword: '', contractor: '', manager: '', phase: '', status: 'all' };
                 },
 
-                isUnsynced(taskId) { return false; }, // Firebase 離線快取不需要顯示這個了
+                isUnsynced(taskId) { return false; }, 
                 
                 getLocations(task) {
                     if (task.locations && task.locations.length > 0) return task.locations;
@@ -714,7 +699,6 @@
                 canToggleComplete(task) { if (task.isCompleted) return task.completedDate === this.todayStr; return !task.isSuspended; },
                 canToggleSuspend(task) { if (task.isSuspended) return task.suspendDate === this.todayStr; return !task.isCompleted; },
 
-                // 💡 1. 修改所有儲存邏輯，直接呼叫 Firestore (即使離線，Firestore 也會暫存並假裝成功)
                 async toggleCompleteStatus(task) {
                     let isCompleted = !task.isCompleted;
                     let completedDate = isCompleted ? this.todayStr : null;
@@ -783,7 +767,6 @@
                     }
                 },
 
-                // (保持為了不報錯而留著的空方法，雖然用不到了)
                 async syncData() { alert("系統已啟用自動即時同步，無須手動存檔！\n(斷線時會自動保存於本機，恢復連線後自動上傳)"); },
 
                 getContractorColor(contractor) {
