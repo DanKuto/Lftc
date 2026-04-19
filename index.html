@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v28 (行事曆完整顯示版)</title>
+    <title>工程執行紀錄系統 v29 (進階篩選與報表優化版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -71,6 +71,9 @@
                 </div>
                 <div v-show="showFilters" class="p-3 space-y-3">
                     <input type="text" v-model="filters.keyword" placeholder="輸入工項、地點或備註關鍵字..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <div v-if="!historyFetched && filters.keyword" class="text-[10px] text-amber-600 font-bold px-1">
+                        ⚠️ 目前僅搜尋進行中工項，欲搜尋歷史紀錄請至下方點擊「展開歷史紀錄」。
+                    </div>
                     
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <select v-model="filters.contractor" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -91,6 +94,12 @@
                             <option value="active">進行中</option>
                             <option value="completed">已完工 / 已停工</option>
                         </select>
+                        
+                        <div class="col-span-2 flex items-center bg-gray-50 border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 px-2 overflow-hidden">
+                            <span class="text-gray-500 font-bold whitespace-nowrap">📅 指定日期：</span>
+                            <input type="date" v-model="filters.date" class="w-full bg-transparent border-0 p-2 focus:outline-none text-gray-700">
+                            <button v-if="filters.date" @click="filters.date=''" class="ml-1 px-2 text-gray-400 hover:text-red-500 font-black" title="清除日期">✖</button>
+                        </div>
                     </div>
                     
                     <div class="flex gap-2 pt-2 border-t border-gray-100">
@@ -258,7 +267,7 @@
                             </div>
 
                             <div class="flex flex-wrap gap-1 mb-3">
-                                <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[10px] px-2 py-0.5 rounded shadow-sm">{{ sub }}</span>
+                                <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[10px] px-2 py-0.5 rounded">{{ sub }}</span>
                             </div>
                             <div class="mt-3 flex justify-between items-center border-t border-slate-300 pt-3">
                                 <div class="flex gap-2">
@@ -276,7 +285,8 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button @click="completedDaysVisible += 7" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95">
+                    <button @click="expandHistory" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95 flex items-center justify-center">
+                        <span v-if="isLoadingHistory" class="animate-spin mr-2">🔄</span>
                         展開歷史紀錄 (載入7天) ▼
                     </button>
                     <button v-if="completedDaysVisible > 0 || forcedVisibleTaskId !== null" @click="hideCompletedTasks" class="shrink-0 py-3 px-4 bg-slate-200 text-slate-600 rounded-xl font-black text-sm hover:bg-slate-300 transition-colors active:scale-95 shadow-sm">
@@ -407,7 +417,7 @@
     <script type="module">
         import { createApp, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy, limit, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBW2VjW1_mR7wbdAlAu3wTUOpHU6ZT62bo",
@@ -454,6 +464,8 @@
                     config: CONFIG,
                     localTasks: [], 
                     isOnline: navigator.onLine,
+                    isLoadingHistory: false,
+                    historyFetched: false,
                     showModal: false,
                     editingTaskId: null,
                     currentYear: today.getFullYear(),
@@ -464,7 +476,7 @@
                     completedDaysVisible: 0, 
                     forcedVisibleTaskId: null,
                     showFilters: false,
-                    filters: { keyword: '', contractor: '', manager: '', phase: '', status: 'all' },
+                    filters: { keyword: '', date: '', contractor: '', manager: '', phase: '', status: 'all' },
                     newTask: {
                         startDate: todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
                         contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
@@ -481,7 +493,7 @@
                 },
 
                 hasActiveFilters() {
-                    return this.filters.keyword !== '' || this.filters.contractor !== '' || 
+                    return this.filters.keyword !== '' || this.filters.date !== '' || this.filters.contractor !== '' || 
                            this.filters.manager !== '' || this.filters.phase !== '' || 
                            this.filters.status !== 'all';
                 },
@@ -491,6 +503,10 @@
                         let isCompleted = this.isTaskCompleted(t);
                         if (this.filters.status === 'active' && isCompleted) return false;
                         if (this.filters.status === 'completed' && !isCompleted) return false;
+
+                        if (this.filters.date) {
+                            if (this.filters.date < t.startDate || this.filters.date > t.endDate) return false;
+                        }
 
                         if (this.filters.contractor && t.contractor !== this.filters.contractor) return false;
                         if (this.filters.manager) { if (!t.managers || !t.managers.includes(this.filters.manager)) return false; }
@@ -596,26 +612,46 @@
             mounted() {
                 window.addEventListener('online', () => this.isOnline = true);
                 window.addEventListener('offline', () => this.isOnline = false);
-                const q = query(tasksCollection, orderBy('createdAt', 'desc'), limit(300));
+                
+                // 恢復為全量即時監聽（加上數量上限防暴走）
+                const q = query(tasksCollection, orderBy('createdAt', 'desc'));
                 onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
                     const fetchedTasks = [];
                     snapshot.forEach((doc) => { 
                         fetchedTasks.push({ id: doc.id, ...doc.data(), expanded: false }); 
                     });
                     this.localTasks = fetchedTasks;
+                    this.historyFetched = true; // 因為已經是全量撈取，所以標記歷史已就緒
                 }, (error) => { console.error("即時連線錯誤:", error); });
             },
             methods: {
                 exportCSV() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
-                    let csvContent = '\uFEFF工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,應辦申請單,備註,停工原因\n';
-                    this.filteredTasks.forEach(t => {
+                    
+                    // 1. 優先從開始時間排序
+                    let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
+                    
+                    // 2. 所有狀態下，匯出上限為 150 筆防呆
+                    if (this.filters.status === 'all' && exportList.length > 150) {
+                        alert('「所有狀態」下匯出數量限制為 150 筆，系統已自動截取最早的 150 筆資料。\n如需匯出更多，請嘗試縮小日期或包商範圍。');
+                        exportList = exportList.slice(0, 150);
+                    }
+
+                    // 3. 欄位順序調整：應辦申請單排在備註的右邊
+                    let csvContent = '\uFEFF工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,備註,應辦申請單,停工原因\n';
+                    
+                    exportList.forEach(t => {
                         let status = t.isSuspended ? '已停工' : (t.isCompleted ? '已完工' : (this.isPast(t.endDate) ? '已過期' : '進行中'));
                         let locs = this.getLocations(t);
                         let phases = locs.map(l => l.phase).join('、');
                         let buildings = locs.map(l => l.building).join('、');
                         let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、');
-                        let row = `"${status}","${t.startDate||''}","${t.endDate||''}","${t.days||1}","${t.contractor||''}","${(t.managers||[]).join('、')}","${phases}","${buildings}","${floors}","${t.mainCategory||''}","${(t.subItems||[]).join('、')}","${(t.permits||[]).join('、')}","${(t.remark||'').replace(/\n/g, ' ')}","${(t.suspendReason||'').replace(/\n/g, ' ')}"`;
+                        
+                        let remark = (t.remark || '').replace(/\n/g, ' ');
+                        let permits = (t.permits || []).join('、');
+                        let suspendReason = (t.suspendReason || '').replace(/\n/g, ' ');
+
+                        let row = `"${status}","${t.startDate||''}","${t.endDate||''}","${t.days||1}","${t.contractor||''}","${(t.managers||[]).join('、')}","${phases}","${buildings}","${floors}","${t.mainCategory||''}","${(t.subItems||[]).join('、')}","${remark}","${permits}","${suspendReason}"`;
                         csvContent += row + '\n';
                     });
                     const link = document.createElement("a");
@@ -624,7 +660,7 @@
                     document.body.appendChild(link); link.click(); document.body.removeChild(link);
                 },
 
-                resetFilters() { this.filters = { keyword: '', contractor: '', manager: '', phase: '', status: 'all' }; },
+                resetFilters() { this.filters = { keyword: '', date: '', contractor: '', manager: '', phase: '', status: 'all' }; },
                 isUnsynced() { return false; }, 
                 getLocations(task) { return task.locations && task.locations.length > 0 ? task.locations : [{ phase: 'P2', building: task.building, floor: task.floor }]; },
                 isTaskCompleted(task) { return task.isCompleted === true || task.isSuspended === true || this.isPast(task.endDate); },
@@ -687,7 +723,8 @@
                     let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
                     return fallbackColors[hash % fallbackColors.length];
                 },
-                
+                getTaskBorderColor(contractor) { const c = this.getContractorColor(contractor); return c.replace('bg-', 'border-'); },
+
                 getCalendarTaskStyles(task, dateStr) {
                     let classes = [this.getContractorColor(task.contractor)];
                     if (task.isSuspended) { if (dateStr <= task.suspendDate || dateStr < this.todayStr) classes.push('grayscale opacity-60'); } 
@@ -736,12 +773,17 @@
                     return `${ey}-${em}-${ed}`;
                 },
 
+                async expandHistory() {
+                    this.completedDaysVisible += 7;
+                },
+
                 loadMore() { this.visibleLimit += 10; },
                 hideCompletedTasks() { this.completedDaysVisible = 0; this.forcedVisibleTaskId = null; },
                 
-                scrollToTask(task) {
-                    if (this.isTaskCompleted(task)) { this.forcedVisibleTaskId = task.id; } 
-                    else {
+                async scrollToTask(task) {
+                    if (this.isTaskCompleted(task)) { 
+                        this.forcedVisibleTaskId = task.id; 
+                    } else {
                         const taskIndex = this.activeTasks.findIndex(t => t.id === task.id);
                         if (taskIndex !== -1 && taskIndex >= this.visibleLimit) this.visibleLimit = taskIndex + 5;
                     }
