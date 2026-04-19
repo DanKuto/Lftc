@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v33 (極致省電調校版)</title>
+    <title>工程執行紀錄系統 v34 (報表狀態統一版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -564,7 +564,6 @@
                     return visibleList;
                 },
 
-                // 💡 效能優化核心：行事曆生成時，一併把 CSS Class 算好存進去
                 calendarDays() {
                     const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
                     const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
@@ -586,7 +585,6 @@
                             if (isWorkDay) {
                                 if (!taskMap[dateStr]) taskMap[dateStr] = [];
                                 
-                                // 💡 預先運算 CSS，免除畫面渲染時的負擔
                                 let baseColor = this.getContractorColor(task.contractor);
                                 let classes = baseColor + ' ';
                                 if (task.isSuspended) {
@@ -628,6 +626,13 @@
                 window.addEventListener('online', () => this.isOnline = true);
                 window.addEventListener('offline', () => this.isOnline = false);
 
+                try {
+                    const savedTasks = localStorage.getItem('site_tasks');
+                    if (savedTasks && savedTasks !== "undefined") {
+                        this.tasks = JSON.parse(savedTasks);
+                    }
+                } catch(e) {}
+
                 const q = query(tasksCollection);
                 onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
                     const fetchedTasks = [];
@@ -640,12 +645,18 @@
                         }); 
                     });
                     this.tasks = fetchedTasks;
+                    this.saveLocalState();
                 }, (error) => { console.error("即時連線錯誤:", error); });
             },
             methods: {
+                saveLocalState() {
+                    localStorage.setItem('site_tasks', JSON.stringify(this.tasks));
+                },
+
                 exportCSV() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
                     
+                    // 💡 狀態邏輯修改：把已過期合併為已完工
                     let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
                     
                     if (this.filters.status === 'all' && exportList.length > 150) {
@@ -656,7 +667,7 @@
                     let csvContent = '\uFEFF工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,備註,應辦申請單,停工原因\n';
                     
                     exportList.forEach(t => {
-                        let status = t.isSuspended ? '已停工' : (t.isCompleted ? '已完工' : (this.isPast(t.endDate) ? '已過期' : '進行中'));
+                        let status = t.isSuspended ? '已停工' : ((t.isCompleted || this.isPast(t.endDate)) ? '已完工' : '進行中');
                         let locs = this.getLocations(t);
                         let phases = locs.map(l => l.phase).join('、');
                         let buildings = locs.map(l => l.building).join('、');
