@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 AP7 </title>
+    <title>工程執行紀錄系統 v18 (備註功能版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -119,12 +119,17 @@
                         </div>
                         
                         <div v-show="task.expanded" class="p-3 border-t text-sm bg-gray-50 border-gray-100">
+                            
                             <div class="mb-3 text-xs">
                                 <span class="text-gray-500">假日施工：</span>
                                 <span v-if="task.includeSaturday && task.includeSunday" class="text-red-500 font-bold">六、日</span>
                                 <span v-else-if="task.includeSaturday" class="text-red-500 font-bold">週六</span>
                                 <span v-else-if="task.includeSunday" class="text-red-500 font-bold">週日</span>
                                 <span v-else>無</span>
+                            </div>
+
+                            <div v-if="task.remark" class="mb-3 text-xs p-2 rounded bg-white text-gray-700 border border-gray-200 whitespace-pre-wrap shadow-sm">
+                                <span class="font-bold text-blue-800">📝 備註：</span><br>{{ task.remark }}
                             </div>
                             
                             <div class="flex flex-wrap gap-1 mb-3">
@@ -203,8 +208,13 @@
                         </div>
                         
                         <div v-show="task.expanded" class="p-3 border-t text-sm bg-slate-100 border-slate-200">
+                            
                             <div v-if="task.isSuspended" class="mb-3 text-xs p-2 rounded bg-rose-100 text-rose-800 border border-rose-200 font-bold">
                                 🛑 停工原因：{{ task.suspendReason }}
+                            </div>
+
+                            <div v-if="task.remark" class="mb-3 text-xs p-2 rounded bg-white text-slate-600 border border-slate-200 whitespace-pre-wrap shadow-sm">
+                                <span class="font-bold text-slate-700">📝 備註：</span><br>{{ task.remark }}
                             </div>
 
                             <div class="flex flex-wrap gap-1 mb-3">
@@ -305,7 +315,7 @@
                         <datalist id="managers-list"><option v-for="m in config.managers" :value="m"></option></datalist>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-2 gap-3 mb-3">
                         <div>
                             <label class="block text-xs font-bold text-gray-500 mb-1">預估工期 (工作天)</label>
                             <select v-model="newTask.days" required class="w-full bg-gray-50 border-0 rounded-xl p-3 text-base">
@@ -319,6 +329,11 @@
                                 <option v-for="(subItems, category) in config.categories" :value="category">{{ category }}</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-500 mb-1">備註 (選填)</label>
+                        <textarea v-model="newTask.remark" rows="2" placeholder="請輸入需要交辦的備註事項..." class="w-full bg-gray-50 border-0 rounded-xl p-3 text-base resize-none shadow-inner"></textarea>
                     </div>
 
                     <div v-if="newTask.mainCategory" class="bg-amber-50/30 p-3 rounded-xl border border-amber-100">
@@ -370,14 +385,14 @@
         const CONFIG = {
             buildings: ['FAB', 'CUP', 'OFFICE', 'SUP', '倉庫'],
             floors: ['LB1', 'LB2', 'L10', 'L20', 'L30', 'L40', 'L50', 'L60', 'L70', 'LR1', 'LR2'],
-            contractors: ['領蜂', '和億', '富懋', '明辰', '明凱', '寰霈', '金鐠鑼'],
+            contractors: ['和億', '富懋', '明辰', '明凱', '金鐠鑼'],
             managers: ['N/A', '睿智', '昱凱', '國展', '旭承', '香雲', '玉琳', '怡霈', '承憲', '庭綺', '語宸'],
             categories: {
                 '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'],
                 '機櫃安裝': ['機櫃定位', '機櫃下線槽安裝', '設備安裝'],
                 '開盤送電': ['電線佈放', '接臨時電盤', '接正式電盤', '結線未送電'], 
                 '話機安裝': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'],
-                '備料整理': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
+                '備料': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
                 '物料運送': ['設備進場', '線材搬運', '廢料清運'],
                 '吊掛作業': ['吊車進場', '設備起降', '交維佈設', '人員淨空'], 
                 '測PIM': ['儀器校正', '負載測試', 'PIM量測', '報告產出']
@@ -410,6 +425,7 @@
                         includeSaturday: false,
                         includeSunday: false,
                         mainCategory: '',
+                        remark: '', // 💡 新增備註狀態
                         subItems: [],
                         permits: []
                     }
@@ -423,7 +439,6 @@
                     return ['一般施工單', '變電站申請', '離架申請', '天花板申請', '重物移入申請']; 
                 },
                 
-                // 區分進行中與歷史紀錄(已完工/停工)
                 activeTasks() {
                     let active = this.tasks.filter(t => !this.isTaskCompleted(t));
                     active.sort((a, b) => {
@@ -447,7 +462,6 @@
                     return completed;
                 },
 
-                // 根據展開天數過濾歷史紀錄
                 visibleCompletedTasks() {
                     if (this.completedDaysVisible <= 0) return [];
                     let cutoffDate = new Date(this.todayStr);
@@ -508,25 +522,23 @@
                     return [{ phase: 'P2', building: task.building, floor: task.floor }];
                 },
 
-                // 擴充完工判定，包含停工狀態
                 isTaskCompleted(task) {
                     return task.isCompleted === true || task.isSuspended === true || this.isPast(task.endDate);
                 },
 
                 canToggleComplete(task) {
                     if (task.isCompleted) {
-                        return task.completedDate === this.todayStr; // 只允許當天返工
+                        return task.completedDate === this.todayStr; 
                     } else {
-                        return !task.isSuspended; // 只要沒停工就可以標記完工
+                        return !task.isSuspended; 
                     }
                 },
 
-                // 停工狀態防呆與權限判斷
                 canToggleSuspend(task) {
                     if (task.isSuspended) {
-                        return task.suspendDate === this.todayStr; // 只允許當天取消停工
+                        return task.suspendDate === this.todayStr; 
                     } else {
-                        return !task.isCompleted; // 只要沒完工就可以停工
+                        return !task.isCompleted; 
                     }
                 },
 
@@ -548,22 +560,19 @@
                     }
                 },
 
-                // 停工觸發邏輯
                 toggleSuspendStatus(task) {
                     let formattedData = { ...task };
                     if (task.isSuspended) {
-                        // 取消停工
                         formattedData.isSuspended = false;
                         formattedData.suspendReason = null;
                         formattedData.suspendDate = null;
                     } else {
-                        // 執行停工
                         let reason = prompt("請輸入停工原因：");
-                        if (!reason || reason.trim() === "") return; // 取消或未輸入則中斷
+                        if (!reason || reason.trim() === "") return; 
                         formattedData.isSuspended = true;
                         formattedData.suspendReason = reason.trim();
                         formattedData.suspendDate = this.todayStr;
-                        formattedData.isCompleted = false; // 確保與完工不衝突
+                        formattedData.isCompleted = false; 
                         formattedData.completedDate = null;
                     }
                     
@@ -593,7 +602,6 @@
                 getCalendarTaskStyles(task, dateStr) {
                     let classes = [this.getContractorColor(task.contractor)];
                     
-                    // 灰階判斷：過去時間、已完工、或是（停工且時間<=停工當天）
                     if (task.isSuspended) {
                         if (dateStr <= task.suspendDate || dateStr < this.todayStr) {
                             classes.push('grayscale opacity-60');
@@ -616,7 +624,7 @@
                         startDate: this.todayStr, days: 1, 
                         locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
                         contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
-                        mainCategory: '', subItems: [], permits: []
+                        mainCategory: '', remark: '', subItems: [], permits: []
                     };
                     this.showModal = true;
                 },
@@ -626,13 +634,13 @@
                         ...task, 
                         locations: task.locations && task.locations.length > 0 ? JSON.parse(JSON.stringify(task.locations)) : [{ phase: 'P2', building: task.building, floor: task.floor }],
                         managers: task.managers && task.managers.length > 0 ? [...task.managers] : [''],
+                        remark: task.remark || '',
                         permits: task.permits ? [...task.permits] : []
                     };
                     this.showModal = true;
                 },
                 handleCategoryChange() {
                     this.newTask.subItems = []; this.newTask.permits = [];
-                    // 同步套用最新名稱
                     if (this.newTask.mainCategory === '物料運送') this.newTask.permits = ['車輛進廠放行單', '物料進出放行單'];
                 },
                 calculateEndDate(start, days, incSat, incSun) {
@@ -655,7 +663,9 @@
                         building: this.newTask.locations[0].building, floor: this.newTask.locations[0].floor, 
                         contractor: this.newTask.contractor.trim(), managers: [...this.newTask.managers.filter(m => m.trim() !== '')], 
                         includeSaturday: this.newTask.includeSaturday, includeSunday: this.newTask.includeSunday,
-                        mainCategory: this.newTask.mainCategory, subItems: [...this.newTask.subItems], permits: [...this.newTask.permits],
+                        mainCategory: this.newTask.mainCategory, 
+                        remark: this.newTask.remark ? this.newTask.remark.trim() : '', 
+                        subItems: [...this.newTask.subItems], permits: [...this.newTask.permits],
                         location: locationString, endDate: end,
                         isCompleted: this.newTask.isCompleted || false,
                         completedDate: this.newTask.completedDate || null,
