@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v37 (UI 進化版)</title>
+    <title>工程執行紀錄系統 v37</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -11,200 +11,446 @@
         .highlight-flash { animation: flash 1.5s ease-out; }
         @keyframes flash {
             0% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.8); transform: scale(1.02); }
+            50% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.4); transform: scale(1.0); }
             100% { box-shadow: 0 0 0 0px rgba(59, 130, 246, 0); }
         }
         [v-cloak] { display: none; }
-        body { letter-spacing: -0.01em; }
+        input::-webkit-calendar-picker-indicator { opacity: 1; cursor: pointer; }
     </style>
 </head>
-<body class="bg-slate-50 font-sans pb-20 scroll-smooth">
-    <div id="app" v-cloak class="max-w-md mx-auto bg-white min-h-screen shadow-2xl flex flex-col">
+<body class="bg-gray-50 font-sans pb-20 scroll-smooth">
+    <div id="app" v-cloak class="max-w-md mx-auto bg-white min-h-screen shadow-lg flex flex-col">
         
-        <header class="bg-slate-800 text-white p-4 sticky top-0 z-30 shadow-md flex justify-between items-center">
-            <h1 class="text-xl font-black tracking-tighter">🏗️ 現場工進系統 <span class="text-[10px] font-normal text-slate-400 ml-1">v37</span></h1>
+        <header class="bg-slate-800 text-white p-4 sticky top-0 z-20 shadow-md flex justify-between items-center">
+            <h1 class="text-xl font-bold">🏗️ 現場工進系統</h1>
+            
             <div class="flex items-center gap-2">
-                <button v-if="!user" @click="showLoginModal = true" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg font-bold transition-all">管理登入</button>
-                <button v-else @click="handleLogout" class="text-xs bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-600 font-bold">👤 {{ user.email.split('@')[0] }}</button>
+                <div class="text-[10px] px-2 py-1.5 rounded-lg border font-bold flex items-center transition-colors hidden sm:flex"
+                     :class="isOnline ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'">
+                    <span class="mr-1.5 relative flex h-2 w-2">
+                      <span v-if="isOnline" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2" :class="isOnline ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                    </span>
+                    {{ isOnline ? '連線中' : '離線暫存' }}
+                </div>
+
+                <button v-if="!user" @click="showLoginModal = true" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg shadow font-bold transition-all active:scale-95">
+                    管理登入
+                </button>
+                <button v-else @click="handleLogout" class="text-xs bg-slate-600 hover:bg-slate-500 text-white px-3 py-1.5 rounded-lg shadow font-bold transition-all active:scale-95 border border-slate-500" title="點擊登出">
+                    👤 {{ user.email.split('@')[0] }} (登出)
+                </button>
             </div>
         </header>
 
-        <main class="p-4 flex-grow space-y-5">
+        <main class="p-4 flex-grow space-y-4">
             
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 relative">
-                <div class="flex justify-between items-center mb-4 border-b border-slate-50 pb-3">
-                    <button @click="changeMonth(-1)" class="w-8 h-8 flex items-center justify-center font-bold text-slate-400 hover:text-blue-500">〈</button>
-                    <h2 class="text-lg font-black text-slate-700">{{ currentYear }} / {{ currentMonth + 1 }}</h2>
-                    <button @click="changeMonth(1)" class="w-8 h-8 flex items-center justify-center font-bold text-slate-400 hover:text-blue-500">〉</button>
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3 relative">
+                <div v-if="isLoadingHistory" class="absolute top-2 right-2 flex items-center justify-center bg-white/90 backdrop-blur rounded-full px-2 py-1 text-[9px] font-bold text-blue-500 shadow border border-blue-100 z-10">
+                    <span class="animate-spin mr-1">🔄</span> 載入月份資料...
+                </div>
+
+                <div class="flex justify-between items-center mb-3 border-b border-gray-100 pb-2">
+                    <button @click="changeMonth(-1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors">〈</button>
+                    <h2 class="text-base font-black text-slate-700">{{ currentYear }} / {{ currentMonth + 1 }}</h2>
+                    <button @click="changeMonth(1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors">〉</button>
                 </div>
                 
-                <div class="grid grid-cols-7 gap-1 text-center text-[9px] font-black text-slate-400 uppercase mb-2">
+                <div class="grid grid-cols-7 text-center text-[10px] font-black text-slate-400 uppercase mb-1">
                     <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
                 </div>
                 
-                <div class="grid grid-cols-7 gap-x-[1px] gap-y-1">
-                    <div v-for="(day, index) in calendarDays" :key="index" class="min-h-[75px] border-t border-slate-50 pt-1 flex flex-col" :class="{'bg-blue-50/30': isToday(day.dateStr)}">
-                        <span v-if="day.day" class="text-[10px] font-bold mb-1 px-1" :class="day.isWeekend ? 'text-rose-300' : 'text-slate-300'">{{ day.day }}</span>
-                        <div class="flex-grow flex flex-col gap-[1px]">
+                <div class="grid grid-cols-7 border-t border-l border-slate-200 bg-white">
+                    <div v-for="(day, index) in calendarDays" :key="index" class="min-h-[75px] border-b border-r border-slate-200 py-1 flex flex-col" :class="{'bg-blue-50/40': isToday(day.dateStr), 'bg-slate-50/50': day.isWeekend && day.day}">
+                        <span v-if="day.day" class="text-xs font-bold mb-1 px-1.5 text-left" :class="day.isWeekend ? 'text-red-400' : 'text-slate-400'">{{ day.day }}</span>
+                        <div class="flex-grow flex flex-col gap-[2px]">
                             <div v-for="task in day.tasks" 
                                  @click.stop="scrollToTask(task)"
-                                 class="text-[9px] py-[2px] truncate text-white font-bold cursor-pointer hover:brightness-110 shadow-sm transition-all" 
+                                 class="text-[10px] py-[2px] truncate text-white font-bold cursor-pointer hover:brightness-110 shadow-sm" 
                                  :class="task._calendarClasses">
-                                {{ task.contractor.substring(0,2) }}
+                                {{ task.contractor || '未指定' }}
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-slate-100 rounded-xl p-3 flex items-center justify-between cursor-pointer border border-slate-200" @click="showFilters = !showFilters">
-                <div class="text-xs font-black text-slate-600 flex items-center">
-                    <span class="mr-2">🔍</span> 搜尋與篩選 (共 {{ filteredTasks.length }} 筆)
-                    <span v-if="hasActiveFilters" class="ml-2 bg-blue-500 text-white px-1.5 py-0.5 rounded text-[8px]">已套用</span>
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-6">
+                <div class="bg-slate-50 p-3 flex justify-between items-center cursor-pointer border-b border-gray-100 hover:bg-slate-100 transition-colors" @click="showFilters = !showFilters">
+                    <div class="font-bold text-slate-700 text-xs flex items-center">
+                        <span class="mr-2 text-sm">🔍</span> 搜尋與篩選 (共 {{ filteredTasks.length }} 筆)
+                        <span v-if="hasActiveFilters" class="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-black">已套用</span>
+                    </div>
+                    <span class="text-slate-400 text-xs font-bold">{{ showFilters ? '▲ 收起' : '▼ 展開' }}</span>
                 </div>
-                <span class="text-slate-400 text-[10px]">{{ showFilters ? '▲' : '▼' }}</span>
+                <div v-show="showFilters" class="p-3 space-y-3">
+                    <input type="text" v-model="filters.keyword" placeholder="輸入工項、地點或備註關鍵字..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <select v-model="filters.contractor" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">所有包商</option>
+                            <option v-for="c in config.contractors" :value="c">{{ c }}</option>
+                        </select>
+                        <select v-model="filters.manager" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">所有管理職</option>
+                            <option v-for="m in config.managers" :value="m">{{ m }}</option>
+                        </select>
+                        <select v-model="filters.phase" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">所有廠區 (P1/P2)</option>
+                            <option value="P1">P1</option>
+                            <option value="P2">P2</option>
+                        </select>
+                        <select v-model="filters.status" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">所有狀態</option>
+                            <option value="active">進行中</option>
+                            <option value="completed">已完工 / 已停工</option>
+                        </select>
+                        
+                        <div class="col-span-2 bg-gray-50 border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 p-2 flex flex-col gap-1.5">
+                            <div class="text-gray-500 font-bold text-xs flex justify-between items-center">
+                                <span>📅 篩選期間 (只要有涵蓋即顯示)</span>
+                                <button v-if="filters.startDate || filters.endDate" @click="filters.startDate=''; filters.endDate=''" class="text-gray-400 hover:text-red-500 font-black px-1" title="清除日期">✖ 清除</button>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="date" v-model="filters.startDate" class="w-full bg-white border border-gray-200 rounded p-1.5 focus:outline-none text-gray-700 text-[11px]">
+                                <span class="text-gray-400 font-black text-[10px]">至</span>
+                                <input type="date" v-model="filters.endDate" class="w-full bg-white border border-gray-200 rounded p-1.5 focus:outline-none text-gray-700 text-[11px]">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2 pt-2 border-t border-gray-100">
+                        <button @click="resetFilters" class="w-1/3 bg-gray-100 text-gray-600 py-2 rounded-lg font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all">清除</button>
+                        <button @click="exportCSV" class="w-2/3 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
+                            <span class="mr-1">📊</span> 匯出結果 (CSV)
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div v-show="showFilters" class="p-3 bg-white border border-slate-200 rounded-xl space-y-3 -mt-3 shadow-inner">
-                <input type="text" v-model="filters.keyword" placeholder="關鍵字搜尋..." class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                    <select v-model="filters.contractor" class="bg-slate-50 border border-slate-200 rounded-lg p-2"><option value="">所有包商</option><option v-for="c in config.contractors" :value="c">{{ c }}</option></select>
-                    <select v-model="filters.status" class="bg-slate-50 border border-slate-200 rounded-lg p-2"><option value="all">所有狀態</option><option value="active">進行中</option><option value="completed">已完工/停工</option></select>
+
+            <div class="pt-2">
+                <div class="flex justify-between items-end mb-2">
+                    <span class="text-xs font-bold text-slate-400">進行中工項</span>
+                    <div class="flex bg-gray-200 rounded-lg p-0.5 shadow-inner">
+                        <button @click="sortBy = 'contractor'" 
+                                class="text-[10px] px-3 py-1 rounded-md font-bold transition-all duration-200 ease-in-out"
+                                :class="sortBy === 'contractor' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+                            按包商
+                        </button>
+                        <button @click="sortBy = 'time'" 
+                                class="text-[10px] px-3 py-1 rounded-md font-bold transition-all duration-200 ease-in-out"
+                                :class="sortBy === 'time' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+                            按時間
+                        </button>
+                    </div>
                 </div>
-                <button @click="resetFilters" class="w-full py-2 text-xs text-slate-400 font-bold border border-slate-200 rounded-lg hover:bg-slate-50">重設篩選</button>
+                <hr class="border-slate-200 mb-4">
             </div>
 
             <div class="space-y-4">
-                <div class="flex justify-between items-center px-1">
-                    <span class="text-xs font-black text-slate-400">進行中工項</span>
-                    <div class="flex bg-slate-200 rounded-lg p-0.5 shadow-inner">
-                        <button @click="sortBy = 'contractor'" class="text-[9px] px-2 py-1 rounded font-bold" :class="sortBy === 'contractor' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'">按包商</button>
-                        <button @click="sortBy = 'time'" class="text-[9px] px-2 py-1 rounded font-bold" :class="sortBy === 'time' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'">按時間</button>
-                    </div>
+                <div v-if="activeTasks.length === 0" class="text-center text-gray-400 py-8 text-sm bg-white rounded-xl border border-dashed border-gray-300">
+                    <span class="text-2xl mb-2 block">📭</span>
+                    目前無進行中工作。
                 </div>
 
-                <div v-for="task in visibleActiveTasks" :key="task.id" :id="'task-' + task.id" 
-                     class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow relative"
-                     :class="{'ring-2 ring-blue-500/20 shadow-blue-100': task.expanded}">
-                    
-                    <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
-                        <div class="flex justify-between items-start mb-3">
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-[10px] font-black px-2 py-0.5 rounded text-white shadow-sm" :class="getContractorColor(task.contractor)">
-                                    {{ task.contractor }}
-                                </span>
-                                <div v-for="loc in getLocations(task)" class="flex items-center bg-slate-100 rounded border border-slate-200 overflow-hidden text-[10px] font-bold">
-                                    <span class="bg-blue-600 text-white px-1.5 py-0.5">{{ loc.phase }}</span>
-                                    <span class="text-slate-700 px-1.5 py-0.5 whitespace-nowrap">{{ loc.building }} {{ loc.floor }}</span>
+                <template v-for="(task, index) in visibleActiveTasks" :key="task.id">
+                    <div :id="'task-' + task.id" class="border border-slate-200 rounded-xl shadow-sm bg-white overflow-hidden">
+                        
+                        <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
+                            <div class="flex justify-between items-start">
+                                <div class="flex flex-col items-start gap-2">
+                                    <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm tracking-widest" :class="getContractorColor(task.contractor)">
+                                        {{ task.contractor || '未指定' }}
+                                    </span>
+                                    <div class="flex flex-wrap gap-1 mt-1">
+                                        <span v-for="loc in getLocations(task)" class="flex items-center border border-slate-200 bg-slate-50 rounded px-2 py-0.5 text-[11px] font-bold">
+                                            <span class="text-blue-600">{{ loc.phase }}</span>
+                                            <span class="text-slate-300 mx-1.5">|</span>
+                                            <span class="text-slate-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
+                                        </span>
+                                    </div>
+                                    <h3 class="text-xl font-black text-slate-800 tracking-wide mt-2">{{ task.mainCategory }}</h3>
+                                </div>
+                                
+                                <div class="flex flex-col items-end gap-2 pt-0.5">
+                                    <div class="flex items-center gap-1 border border-blue-200 bg-blue-50 text-blue-700 px-2 py-1 rounded text-[11px] font-bold">
+                                        <span class="text-[12px]">⏱</span> {{ task.days }} 工作天
+                                    </div>
+                                    <div class="text-[11px] text-slate-500 font-medium tracking-wider mt-1">
+                                        {{ task.startDate }} 至 {{ task.endDate }}
+                                    </div>
+                                    <div class="text-[11px] text-slate-500 font-bold flex items-center">
+                                        <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
+                                    </div>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-1 bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-full text-[10px] font-black shrink-0 shadow-sm">
-                                <span>⏱️</span> {{ task.days }} 工作天
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-end">
-                            <div class="text-xl font-black text-slate-800 tracking-tight">{{ task.mainCategory }}</div>
-                            <div class="text-right">
-                                <div class="text-[10px] text-slate-400 font-bold mb-0.5">{{ task.startDate }} 至 {{ task.endDate }}</div>
-                                <div class="text-[10px] text-slate-600 font-black flex items-center justify-end">
-                                    <span class="mr-1 text-[12px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div v-if="!task.expanded" class="mt-2 flex gap-1 overflow-hidden">
-                            <span v-for="sub in (task.subItems || []).slice(0, 3)" class="text-[9px] bg-slate-50 text-slate-400 border border-slate-100 px-1.5 rounded">{{ sub }}</span>
-                        </div>
-                    </div>
-
-                    <div v-if="task.expanded" class="px-4 pb-4 pt-2 border-t border-slate-50 bg-slate-50/50">
-                        <div class="flex flex-wrap gap-1.5 mb-4">
-                            <span v-for="sub in task.subItems" class="bg-white border border-slate-200 text-slate-600 text-[10px] px-2 py-1 rounded font-bold shadow-sm">{{ sub }}</span>
                         </div>
                         
-                        <div v-if="task.remark" class="mb-4 text-[11px] leading-relaxed text-slate-600 bg-white p-3 rounded-xl border border-slate-200 shadow-inner italic">
-                            <span class="font-black text-slate-800 not-italic block mb-1">備註事項：</span>
-                            {{ task.remark }}
-                        </div>
-
-                        <div class="text-[10px] text-slate-500 font-bold mb-4 flex items-center">
-                            <span class="mr-2">📑 應辦：</span>
-                            <span class="text-slate-800">{{ task.permits && task.permits.length ? task.permits.join('、') : '無' }}</span>
-                        </div>
-
-                        <div v-if="user" class="flex justify-between items-center gap-2 pt-3 border-t border-slate-200/60">
-                            <div class="flex gap-1.5">
-                                <button @click.stop="toggleCompleteStatus(task)" class="bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-black px-4 py-2 rounded-lg shadow-sm active:scale-95 transition-all">已完工</button>
-                                <button @click.stop="toggleSuspendStatus(task)" class="bg-rose-500 hover:bg-rose-600 text-white text-[11px] font-black px-4 py-2 rounded-lg shadow-sm active:scale-95 transition-all">停工</button>
+                        <div v-if="task.expanded" class="px-4 pb-4">
+                            <div class="flex flex-wrap gap-2 mb-3" v-if="task.subItems && task.subItems.length">
+                                <span v-for="sub in task.subItems" class="bg-white border border-slate-200 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
                             </div>
-                            <div class="flex gap-1.5">
-                                <button @click.stop="openEditModal(task)" class="bg-white border border-slate-300 text-slate-600 text-[11px] font-black px-4 py-2 rounded-lg active:scale-95 transition-all">修改</button>
-                                <button @click.stop="confirmDelete(task)" class="bg-white border border-slate-300 text-rose-500 text-[11px] font-black px-4 py-2 rounded-lg active:scale-95 transition-all">刪除</button>
+                            
+                            <hr class="border-slate-200 my-4">
+                            
+                            <div class="text-[12px] text-slate-800 leading-relaxed mb-4">
+                                <span class="font-bold">備註事項:</span>
+                                <div class="pl-6 mt-1 whitespace-pre-wrap">{{ task.remark || '無' }}</div>
+                            </div>
+                            
+                            <hr class="border-slate-200 my-4">
+                            
+                            <div class="text-[12px] text-slate-800 font-bold mb-5 flex items-start">
+                                <span class="mr-2 shrink-0">應辦:</span>
+                                <span class="font-normal">{{ task.permits && task.permits.length ? task.permits.join(', ') : '無' }}</span>
+                            </div>
+
+                            <div v-if="user" class="flex justify-between items-center">
+                                <div class="flex gap-2">
+                                    <button @click.stop="toggleCompleteStatus(task)" class="bg-[#14b8a6] hover:bg-teal-500 text-white text-[12px] font-bold px-6 py-2 rounded transition-colors shadow-sm">已完工</button>
+                                    <button @click.stop="toggleSuspendStatus(task)" class="bg-[#ef4444] hover:bg-red-500 text-white text-[12px] font-bold px-6 py-2 rounded transition-colors shadow-sm">停工</button>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button @click.stop="openEditModal(task)" class="bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-[12px] font-bold px-6 py-2 rounded transition-colors shadow-sm">修改</button>
+                                    <button @click.stop="confirmDelete(task)" class="bg-white border border-slate-300 text-[#ef4444] hover:bg-red-50 text-[12px] font-bold px-6 py-2 rounded transition-colors shadow-sm">刪除</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="sortBy === 'time' && index < visibleActiveTasks.length - 1 && task.startDate !== visibleActiveTasks[index+1].startDate" 
+                         class="my-5 border-b border-slate-200 relative">
+                        <span class="absolute right-0 -top-2.5 bg-gray-50 text-slate-400 font-bold text-[10px] px-2 py-0.5">
+                            {{ visibleActiveTasks[index+1].startDate }}
+                        </span>
+                    </div>
+                </template>
+
+                <button v-if="activeTasks.length > visibleLimit" @click="loadMore" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-blue-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
+                    載入更多進行中工項 (還有 {{ activeTasks.length - visibleLimit }} 筆) ▼
+                </button>
+            </div>
+
+            <div class="mt-8">
+                <div class="flex items-center space-x-2 mb-4">
+                    <hr class="flex-grow border-slate-300">
+                    <span class="text-[11px] font-bold text-slate-400">已完工與停工紀錄</span>
+                    <hr class="flex-grow border-slate-300">
+                </div>
+
+                <div v-if="historyVisibleLimit > 0 || visibleCompletedTasks.length > 0" class="space-y-4 mb-4">
+                    <div v-if="visibleCompletedTasks.length === 0" class="text-center text-gray-400 text-sm py-6 bg-white rounded-xl border border-dashed border-gray-300">
+                        這段期間沒有歷史紀錄。
+                    </div>
+                    
+                    <div v-for="task in visibleCompletedTasks" :key="task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden bg-slate-50 border-slate-200 opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0">
+                        <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
+                            <div class="flex justify-between items-start">
+                                <div class="flex flex-col items-start gap-2">
+                                    <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm" :class="getContractorColor(task.contractor)">
+                                        {{ task.contractor || '未指定' }} <span v-if="task.isSuspended" class="font-normal">(已停工)</span><span v-else class="font-normal">(已完工)</span>
+                                    </span>
+                                    <div class="flex flex-wrap gap-1 mt-1">
+                                        <span v-for="loc in getLocations(task)" class="flex items-center border border-slate-200 bg-slate-100 rounded px-2 py-0.5 text-[11px] font-bold">
+                                            <span class="text-blue-600">{{ loc.phase }}</span>
+                                            <span class="text-slate-400 mx-1.5">|</span>
+                                            <span class="text-slate-600">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
+                                        </span>
+                                    </div>
+                                    <h3 class="text-xl font-black text-slate-700 tracking-wide mt-2">{{ task.mainCategory }}</h3>
+                                </div>
+                                
+                                <div class="flex flex-col items-end gap-2 pt-0.5">
+                                    <div class="flex items-center gap-1 border border-slate-300 bg-slate-200 text-slate-600 px-2 py-1 rounded text-[11px] font-bold">
+                                        <span class="text-[12px]">⏱</span> {{ task.days }} 工作天
+                                    </div>
+                                    <div class="text-[11px] text-slate-500 font-medium tracking-wider mt-1">
+                                        {{ task.startDate }} 至 {{ task.endDate }}
+                                    </div>
+                                    <div class="text-[11px] text-slate-500 font-bold flex items-center">
+                                        <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div v-if="task.expanded" class="px-4 pb-4">
+                            <div v-if="task.isSuspended" class="mb-3 text-xs p-2.5 rounded bg-rose-100 text-rose-800 border border-rose-200 font-bold">
+                                🛑 停工原因：{{ task.suspendReason }}
+                            </div>
+                            
+                            <hr class="border-slate-200 my-3">
+                            <div class="text-[12px] text-slate-700 leading-relaxed">
+                                <span class="font-bold block mb-1">備註事項:</span>
+                                <div class="pl-6 mt-1 whitespace-pre-wrap">{{ task.remark || '無' }}</div>
+                            </div>
+                            
+                            <hr class="border-slate-200 my-4">
+                            <div class="flex flex-wrap gap-2 mb-4" v-if="task.subItems && task.subItems.length">
+                                <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
+                            </div>
+
+                            <div v-if="user" class="flex justify-between items-center mt-2">
+                                <div class="flex gap-2">
+                                    <button v-if="task.isSuspended && canToggleSuspend(task)" @click.stop="toggleSuspendStatus(task)" class="bg-white border border-slate-300 text-slate-600 text-[12px] font-bold px-4 py-2 rounded">↩️ 取消停工</button>
+                                    <button v-else-if="!task.isSuspended && canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" class="bg-white border border-slate-300 text-slate-600 text-[12px] font-bold px-4 py-2 rounded">↩️ 取消完工</button>
+                                </div>
+                                <button @click.stop="confirmDelete(task)" class="bg-white border border-slate-300 text-[#ef4444] text-[12px] font-bold px-4 py-2 rounded">刪除</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <button v-if="activeTasks.length > visibleLimit" @click="loadMore" class="w-full py-4 bg-white border-2 border-dashed border-slate-200 text-slate-400 rounded-2xl font-black text-xs hover:bg-slate-50">載入更多進行中工項 ▼</button>
-            </div>
-
-            <div class="pt-8 opacity-60">
-                <div class="flex items-center gap-2 mb-4">
-                    <hr class="flex-grow border-slate-200"><span class="text-[10px] font-black text-slate-400 tracking-widest uppercase">History</span><hr class="flex-grow border-slate-200">
-                </div>
                 <div class="flex gap-2">
-                    <button @click="expandHistory" class="flex-grow py-3 bg-white border border-slate-200 text-slate-500 rounded-xl font-bold text-xs">查看歷史紀錄</button>
-                    <button v-if="historyVisibleLimit > 0" @click="hideCompletedTasks" class="px-4 bg-slate-200 text-slate-600 rounded-xl font-bold text-xs">隱藏</button>
+                    <button @click="expandHistory" :disabled="isLoadingHistory" class="flex-grow py-3 bg-white border-2 border-dashed border-slate-300 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm shadow-sm active:scale-95 flex items-center justify-center disabled:opacity-50">
+                        <span v-if="isLoadingHistory" class="animate-spin mr-2">🔄</span>
+                        {{ isLoadingHistory ? '撈取歷史資料中...' : '載入更多歷史紀錄 ▼' }}
+                    </button>
+                    <button v-if="historyVisibleLimit > 0 || forcedVisibleTaskId !== null" @click="hideCompletedTasks" class="shrink-0 py-3 px-4 bg-slate-200 text-slate-600 rounded-xl font-black text-sm hover:bg-slate-300 transition-colors active:scale-95 shadow-sm">
+                        隱藏 ❌
+                    </button>
                 </div>
             </div>
         </main>
 
-        <button v-if="user" @click="openNewModal" class="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl z-40 hover:scale-105 active:scale-95 transition-all"> + </button>
+        <button v-if="user" @click="openNewModal" class="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-[0_10px_25px_-5px_rgba(37,99,235,0.5)] flex items-center justify-center text-3xl z-20 hover:bg-blue-700 hover:scale-105 transition-all"> + </button>
 
-        <div v-if="showLoginModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+        <div v-if="showLoginModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
                 <h2 class="text-xl font-black text-slate-800 mb-4">🔐 管理員登入</h2>
                 <form @submit.prevent="handleLogin" class="space-y-4">
-                    <input type="email" v-model="loginForm.email" placeholder="Email" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500">
-                    <input type="password" v-model="loginForm.password" placeholder="Password" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500">
-                    <div class="flex gap-3">
-                        <button type="button" @click="showLoginModal = false" class="w-1/3 py-3 font-bold text-slate-400">取消</button>
-                        <button type="submit" class="w-2/3 bg-blue-600 text-white font-black py-3 rounded-xl shadow-lg">登入系統</button>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">電子郵件</label>
+                        <input type="email" v-model="loginForm.email" required class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">密碼</label>
+                        <input type="password" v-model="loginForm.password" required class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div v-if="loginForm.error" class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded border border-red-100">
+                        ⚠️ {{ loginForm.error }}
+                    </div>
+                    <div class="flex gap-3 pt-2">
+                        <button type="button" @click="showLoginModal = false" class="w-1/3 bg-gray-100 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors">取消</button>
+                        <button type="submit" class="w-2/3 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all" :disabled="isLoggingIn">
+                            {{ isLoggingIn ? '驗證中...' : '登入系統' }}
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
 
-        <div v-if="showModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end z-40">
-            <div class="bg-white w-full rounded-t-[32px] p-6 max-h-[92vh] overflow-y-auto shadow-2xl">
+        <div v-if="showModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end z-30">
+            <div class="bg-white w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-xl font-black text-slate-800">{{ editingTaskId ? '✏️ 修改排程' : '📅 排定新工項' }}</h2>
-                    <button @click="showModal = false" class="text-slate-300 text-2xl font-bold">×</button>
+                    <button @click="showModal = false" class="text-gray-400 bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center text-xl font-bold hover:bg-gray-200 hover:text-gray-600 transition-colors">&times;</button>
                 </div>
-                <form @submit.prevent="saveTask" class="space-y-4 pb-10">
+
+                <form @submit.prevent="saveTask" class="space-y-4">
                     <div>
-                        <label class="block text-[10px] font-black text-slate-400 mb-1">開始日期</label>
-                        <input v-model="newTask.startDate" type="date" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold">
-                    </div>
-                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                        <label class="block text-[10px] font-black text-slate-400 mb-2 uppercase">Locations</label>
-                        <div v-for="(loc, idx) in newTask.locations" :key="idx" class="flex items-center gap-2 mb-2">
-                             <select v-model="loc.phase" class="bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold"><option value="P1">P1</option><option value="P2">P2</option></select>
-                             <select v-model="loc.building" class="flex-grow bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold"><option v-for="b in config.buildings" :value="b">{{ b }}</option></select>
-                             <select v-model="loc.floor" class="w-20 bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold"><option v-for="f in config.floors" :value="f">{{ f }}</option></select>
-                             <button type="button" @click="newTask.locations.push({phase:'P2', building:'FAB', floor:''})" v-if="idx === 0" class="text-blue-500 font-bold">+</button>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">開始日期</label>
+                        <input v-model="newTask.startDate" type="date" required class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-base mb-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                        <div class="flex items-center gap-4 bg-gray-50 border border-gray-200 p-2 rounded-lg">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="newTask.includeSaturday" class="w-4 h-4 rounded border-gray-300 text-blue-600">
+                                <span class="ml-2 text-xs font-bold text-gray-600">週六施工</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="newTask.includeSunday" class="w-4 h-4 rounded border-gray-300 text-blue-600">
+                                <span class="ml-2 text-xs font-bold text-gray-600">週日施工</span>
+                            </label>
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div><label class="block text-[10px] font-black text-slate-400 mb-1">工期 (天)</label><input type="number" v-model="newTask.days" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold"></div>
-                        <div><label class="block text-[10px] font-black text-slate-400 mb-1">主要工項</label>
-                             <select v-model="newTask.mainCategory" @change="handleCategoryChange" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold">
-                                <option v-for="(subs, cat) in config.categories" :value="cat">{{ cat }}</option>
-                             </select>
+
+                    <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                        <label class="block text-xs font-bold text-blue-800 mb-2">施工地點</label>
+                        <div v-for="(loc, index) in newTask.locations" :key="index" class="mb-3 p-3 bg-white rounded-lg shadow-sm border border-blue-50">
+                            <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
+                                <div class="flex space-x-6">
+                                    <label class="flex items-center text-sm font-bold text-gray-700 cursor-pointer">
+                                        <input type="radio" v-model="loc.phase" value="P1" class="mr-2 w-4 h-4 accent-amber-500"> P1
+                                    </label>
+                                    <label class="flex items-center text-sm font-bold text-gray-700 cursor-pointer">
+                                        <input type="radio" v-model="loc.phase" value="P2" class="mr-2 w-4 h-4 accent-blue-600"> P2
+                                    </label>
+                                </div>
+                                <div class="flex gap-1">
+                                    <button type="button" v-if="newTask.locations.length > 1" @click="newTask.locations.splice(index, 1)" class="w-7 h-7 flex items-center justify-center bg-red-50 text-red-500 rounded font-black hover:bg-red-100 transition-colors">－</button>
+                                    <button type="button" v-if="index === newTask.locations.length - 1" @click="newTask.locations.push({ phase: 'P2', building: 'FAB', floor: '' })" class="w-7 h-7 flex items-center justify-center bg-blue-100 text-blue-600 rounded font-black hover:bg-blue-200 transition-colors">＋</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <select v-model="loc.building" @change="loc.building === '倉庫' ? loc.floor = '無' : (loc.floor === '無' ? loc.floor = '' : null)" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option v-for="b in config.buildings" :value="b">{{ b }}</option>
+                                </select>
+                                <select v-model="loc.floor" :required="loc.building !== '倉庫'" :disabled="loc.building === '倉庫'" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-base disabled:opacity-50 focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="" disabled v-if="loc.building !== '倉庫'">請選擇樓層</option>
+                                    <option v-if="loc.building === '倉庫'" value="無">無</option>
+                                    <option v-for="f in config.floors" :key="f" :value="f">{{ f }}</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    <div><label class="block text-[10px] font-black text-slate-400 mb-1">負責班組</label><input list="c-list" v-model="newTask.contractor" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold"><datalist id="c-list"><option v-for="c in config.contractors" :value="c"></option></datalist></div>
-                    <div><label class="block text-[10px] font-black text-slate-400 mb-1">備註</label><textarea v-model="newTask.remark" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm"></textarea></div>
-                    <button type="submit" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-200">儲存並同步雲端</button>
+
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">負責班組 / 包商</label>
+                        <input list="contractors-list" v-model="newTask.contractor" placeholder="請選擇或輸入" required class="w-full bg-white border border-gray-200 rounded-lg p-3 text-base mb-3 shadow-sm placeholder:text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        <datalist id="contractors-list"><option v-for="c in config.contractors" :value="c"></option></datalist>
+
+                        <label class="block text-xs font-bold text-gray-700 mb-1">管理職</label>
+                        <div v-for="(mgr, index) in newTask.managers" :key="index" class="flex items-center gap-2 mb-2">
+                            <input list="managers-list" v-model="newTask.managers[index]" placeholder="請選擇或輸入" required class="flex-grow bg-white border border-gray-200 rounded-lg p-3 text-base shadow-sm placeholder:text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            <button type="button" v-if="newTask.managers.length > 1" @click="newTask.managers.splice(index, 1)" class="bg-red-100 text-red-600 w-10 h-10 rounded-lg font-black shrink-0 hover:bg-red-200">－</button>
+                            <button type="button" v-if="index === newTask.managers.length - 1" @click="newTask.managers.push('')" class="bg-blue-200 text-blue-700 w-10 h-10 rounded-lg font-black shrink-0 hover:bg-blue-300">＋</button>
+                        </div>
+                        <datalist id="managers-list"><option v-for="m in config.managers" :value="m"></option></datalist>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">預估工期 (工作天)</label>
+                            <select v-model="newTask.days" required class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option v-for="n in 7" :key="n" :value="n">{{ n }} 天</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">主要工項</label>
+                            <select v-model="newTask.mainCategory" @change="handleCategoryChange" required class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="" disabled>請選擇...</option>
+                                <option v-for="(subItems, category) in config.categories" :value="category">{{ category }}</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-500 mb-1">備註 (選填)</label>
+                        <textarea v-model="newTask.remark" rows="2" placeholder="請輸入需要交辦的備註事項..." class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-base resize-none shadow-inner focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                    </div>
+
+                    <div v-if="newTask.mainCategory" class="bg-amber-50/30 p-3 rounded-xl border border-amber-100">
+                        <label class="block text-xs font-bold text-amber-700 mb-2">施作細項</label>
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <label v-for="sub in config.categories[newTask.mainCategory]" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
+                                <input type="checkbox" :value="sub" v-model="newTask.subItems" class="mr-2 w-4 h-4 rounded text-amber-600 focus:ring-amber-500"> {{ sub }}
+                            </label>
+                            <span v-if="config.categories[newTask.mainCategory].length === 0" class="text-xs text-amber-500">無細項</span>
+                        </div>
+
+                        <div v-if="availablePermits.length > 0" class="pt-3 border-t border-amber-200/50">
+                            <label class="block text-xs font-bold text-amber-700 mb-2">應辦申請單 (請勾選)</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label v-for="permit in availablePermits" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
+                                    <input type="checkbox" :value="permit" v-model="newTask.permits" class="mr-2 w-4 h-4 rounded text-amber-600 focus:ring-amber-500"> {{ permit }}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full text-white font-black py-4 rounded-2xl shadow-lg mt-6 active:scale-95 transition-all flex justify-center items-center"
+                            :class="editingTaskId ? 'bg-amber-500 shadow-amber-200 hover:bg-amber-600' : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'">
+                        {{ editingTaskId ? '儲存修改 (自動同步雲端)' : '建立排程 (自動同步雲端)' }}
+                    </button>
                 </form>
             </div>
         </div>
@@ -216,7 +462,6 @@
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, orderBy, limit, getDocs, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
-        // Firebase Config (使用你原本的配置)
         const firebaseConfig = {
             apiKey: "AIzaSyBW2VjW1_mR7wbdAlAu3wTUOpHU6ZT62bo",
             authDomain: "lftc-b0e9b.firebaseapp.com",
@@ -228,41 +473,59 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const auth = getAuth(app);
-        enableIndexedDbPersistence(db).catch(() => {});
+        const auth = getAuth(app); 
+        
+        enableIndexedDbPersistence(db).catch((err) => { console.warn("無法啟用離線快取:", err); });
 
         const tasksCollection = collection(db, 'tasks');
 
         const CONFIG = {
             buildings: ['FAB', 'CUP', 'OFFICE', 'SUP', '倉庫'],
-            floors: ['LB1', 'LB2', 'L10', 'L20', 'L30', 'L40', 'L50', 'L60', 'L70', 'LR1', 'LR2', '無'],
+            floors: ['LB1', 'LB2', 'L10', 'L20', 'L30', 'L40', 'L50', 'L60', 'L70', 'LR1', 'LR2'],
             contractors: ['領鋒', '和億', '富懋', '明辰', '明凱', '寰霈', '金鐠鑼'],
             managers: ['N/A', '睿智', '昱凱', '國展', '旭承', '香雲', '玉琳', '怡霈', '承憲', '庭綺', '語宸'],
             categories: {
                 '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'],
                 '機櫃安裝': ['機櫃定位', '機櫃下線槽安裝', '設備安裝'],
-                '開盤送電': ['電線佈放', '接臨時電盤', '接正式電盤'], 
-                '話機安裝': ['電話線佈放', '電話機安裝'],
-                '備料': ['網路線打線', '跳線測試'],
-                '物料運送': ['設備進場', '線材搬運'],
-                '吊掛作業': ['吊車進場', '設備起降'], 
-                '測PIM': ['儀器校正', '負載測試', 'PIM量測']
+                '開盤送電': ['電線佈放', '接臨時電盤', '接正式電盤', '結線未送電'], 
+                '話機安裝': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'],
+                '備料': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
+                '物料運送': ['設備進場', '線材搬運', '廢料清運'],
+                '吊掛作業': ['吊車進場', '設備起降', '交維佈設', '人員淨空'], 
+                '測PIM': ['儀器校正', '負載測試', 'PIM量測', '報告產出']
             }
         };
 
         createApp({
             data() {
-                const t = new Date();
-                const todayStr = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+                const today = new Date();
+                const y = today.getFullYear();
+                const m = String(today.getMonth() + 1).padStart(2, '0');
+                const d = String(today.getDate()).padStart(2, '0');
+                const todayStr = `${y}-${m}-${d}`;
+
                 return {
-                    config: CONFIG, tasks: [], loadedMonths: [], isLoadingHistory: false, user: null,
-                    showLoginModal: false, showModal: false, editingTaskId: null,
-                    currentYear: t.getFullYear(), currentMonth: t.getMonth(), todayStr,
-                    sortBy: 'time', visibleLimit: 20, historyVisibleLimit: 0,
-                    historyFetchCursor: { year: t.getFullYear(), month: t.getMonth() },
+                    config: CONFIG,
+                    tasks: [], 
+                    loadedMonths: [],
+                    isLoadingHistory: false,
+                    isOnline: navigator.onLine,
+                    user: null, 
+                    showLoginModal: false,
+                    isLoggingIn: false,
+                    loginForm: { email: '', password: '', error: '' },
+                    showModal: false,
+                    editingTaskId: null,
+                    currentYear: today.getFullYear(),
+                    currentMonth: today.getMonth(),
+                    todayStr: todayStr,
+                    sortBy: 'time', 
+                    visibleLimit: 20, 
+                    historyVisibleLimit: 0, 
+                    historyFetchCursor: { year: today.getFullYear(), month: today.getMonth() }, 
+                    forcedVisibleTaskId: null,
                     showFilters: false,
                     filters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
-                    loginForm: { email: '', password: '', error: '' },
                     newTask: {
                         startDate: todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
                         contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
@@ -271,155 +534,384 @@
                 }
             },
             computed: {
-                hasActiveFilters() { return this.filters.keyword !== '' || this.filters.contractor !== '' || this.filters.status !== 'all'; },
+                availablePermits() {
+                    if (!this.newTask.mainCategory) return [];
+                    if (this.newTask.mainCategory === '備料') return []; 
+                    if (this.newTask.mainCategory === '物料運送') return ['車輛進廠放行單', '物料進出放行單']; 
+                    return ['一般施工單', '變電站申請', '離架申請', '天花板申請', '重物移入申請']; 
+                },
+                hasActiveFilters() {
+                    return this.filters.keyword !== '' || this.filters.startDate !== '' || this.filters.endDate !== '' || 
+                           this.filters.contractor !== '' || this.filters.manager !== '' || 
+                           this.filters.phase !== '' || this.filters.status !== 'all';
+                },
                 filteredTasks() {
                     return this.tasks.filter(t => {
-                        if (this.filters.status === 'active' && (t.isCompleted || t.isSuspended)) return false;
-                        if (this.filters.status === 'completed' && !(t.isCompleted || t.isSuspended)) return false;
+                        let isCompleted = this.isTaskCompleted(t);
+                        if (this.filters.status === 'active' && isCompleted) return false;
+                        if (this.filters.status === 'completed' && !isCompleted) return false;
+                        if (this.filters.startDate && t.endDate < this.filters.startDate) return false;
+                        if (this.filters.endDate && t.startDate > this.filters.endDate) return false;
                         if (this.filters.contractor && t.contractor !== this.filters.contractor) return false;
+                        if (this.filters.manager) { if (!t.managers || !t.managers.includes(this.filters.manager)) return false; }
+                        if (this.filters.phase) {
+                            let locs = this.getLocations(t);
+                            if (!locs.some(l => l.phase === this.filters.phase)) return false;
+                        }
                         if (this.filters.keyword) {
                             const kw = this.filters.keyword.toLowerCase();
-                            return t.mainCategory.toLowerCase().includes(kw) || t.contractor.toLowerCase().includes(kw) || (t.remark||'').toLowerCase().includes(kw);
+                            const matchText = `${t.mainCategory} ${t.location} ${t.remark || ''} ${t.contractor || ''}`.toLowerCase();
+                            if (!matchText.includes(kw)) return false;
                         }
                         return true;
                     });
                 },
                 activeTasks() {
-                    let active = this.filteredTasks.filter(t => !(t.isCompleted || t.isSuspended || t.endDate < this.todayStr));
-                    active.sort((a,b) => this.sortBy === 'contractor' ? a.contractor.localeCompare(b.contractor) : a.startDate.localeCompare(b.startDate));
+                    let active = this.filteredTasks.filter(t => !this.isTaskCompleted(t));
+                    active.sort((a, b) => {
+                        if (this.sortBy === 'contractor') {
+                            let cA = a.contractor || ''; let cB = b.contractor || '';
+                            if (cA !== cB) return cA.localeCompare(cB);
+                            return a.startDate.localeCompare(b.startDate);
+                        } else {
+                            return a.startDate.localeCompare(b.startDate);
+                        }
+                    });
                     return active;
                 },
                 visibleActiveTasks() { return this.activeTasks.slice(0, this.visibleLimit); },
+                completedTasks() {
+                    let completed = this.filteredTasks.filter(t => this.isTaskCompleted(t));
+                    completed.sort((a, b) => b.endDate.localeCompare(a.endDate));
+                    return completed;
+                },
+                visibleCompletedTasks() {
+                    let visibleList = [];
+                    if (this.hasActiveFilters && this.filters.status !== 'active') {
+                        visibleList = this.completedTasks;
+                    } else if (this.historyVisibleLimit > 0) {
+                        visibleList = this.completedTasks.slice(0, this.historyVisibleLimit);
+                    }
+                    if (this.forcedVisibleTaskId) {
+                        const forcedTask = this.completedTasks.find(t => t.id === this.forcedVisibleTaskId);
+                        if (forcedTask && !visibleList.find(t => t.id === forcedTask.id)) visibleList.unshift(forcedTask);
+                    }
+                    return visibleList;
+                },
                 calendarDays() {
                     const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
                     const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
                     const taskMap = {};
-
+                    
                     this.filteredTasks.forEach(task => {
-                        let cur = new Date(task.startDate);
-                        let end = new Date(task.endDate);
-                        while(cur <= end) {
-                            let ds = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
-                            if (!taskMap[ds]) taskMap[ds] = [];
+                        if (!task.startDate || !task.endDate) return;
+                        let [sy, sm, sd] = task.startDate.split('-'); let currentDate = new Date(sy, sm - 1, sd);
+                        let [ey, em, ed] = task.endDate.split('-'); let endDate = new Date(ey, em - 1, ed);
+                        let count = 0;
+                        
+                        while (currentDate <= endDate && count < 100) {
+                            let y = currentDate.getFullYear(); let m = String(currentDate.getMonth() + 1).padStart(2, '0'); let d = String(currentDate.getDate()).padStart(2, '0');
+                            let dateStr = `${y}-${m}-${d}`;
+                            let dayOfWeek = currentDate.getDay(); let isWorkDay = true;
+                            if (dayOfWeek === 6 && !task.includeSaturday) isWorkDay = false;
+                            if (dayOfWeek === 0 && !task.includeSunday) isWorkDay = false;
                             
-                            // 膠囊圓角邏輯
-                            let base = this.getContractorColor(task.contractor) + ' ';
-                            if (ds === task.startDate && ds === task.endDate) base += 'rounded-full mx-1';
-                            else if (ds === task.startDate) base += 'rounded-l-full ml-1';
-                            else if (ds === task.endDate) base += 'rounded-r-full mr-1';
-                            else base += 'rounded-none mx-0';
+                            if (isWorkDay) {
+                                if (!taskMap[dateStr]) taskMap[dateStr] = [];
+                                
+                                // 精準還原需求：使用 10px 圓角且連續方塊能無縫連在一起
+                                let baseColor = this.getContractorColor(task.contractor);
+                                let classes = baseColor + ' h-[18px] flex items-center px-1.5 ';
+                                
+                                if (task.isSuspended) {
+                                    if (dateStr <= task.suspendDate || dateStr < this.todayStr) classes += 'grayscale opacity-60 ';
+                                } else if (dateStr < this.todayStr || task.isCompleted) {
+                                    classes += 'grayscale opacity-60 ';
+                                }
 
-                            if (task.isSuspended || task.isCompleted || ds < this.todayStr) base += ' grayscale opacity-40';
+                                if (dateStr === task.startDate && dateStr === task.endDate) {
+                                    classes += 'rounded-[10px] mx-[2px]';
+                                } else if (dateStr === task.startDate) {
+                                    classes += 'rounded-l-[10px] ml-[2px] mr-0';
+                                } else if (dateStr === task.endDate) {
+                                    classes += 'rounded-r-[10px] mr-[2px] ml-0';
+                                } else {
+                                    classes += 'rounded-none mx-0';
+                                }
 
-                            taskMap[ds].push({ ...task, _calendarClasses: base });
-                            cur.setDate(cur.getDate()+1);
+                                taskMap[dateStr].push({ ...task, _calendarClasses: classes });
+                            }
+                            currentDate.setDate(currentDate.getDate() + 1); count++;
                         }
                     });
 
                     let days = [];
-                    for (let i = 0; i < firstDay; i++) days.push({ day: null, tasks: [] });
+                    for (let i = 0; i < firstDay; i++) days.push({ day: null, dateStr: null, tasks: [] });
                     for (let i = 1; i <= daysInMonth; i++) {
-                        const ds = `${this.currentYear}-${String(this.currentMonth+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                        const dateStr = `${this.currentYear}-${String(this.currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
                         const d = new Date(this.currentYear, this.currentMonth, i);
-                        days.push({ day: i, dateStr: ds, isWeekend: d.getDay() === 0 || d.getDay() === 6, tasks: taskMap[ds] || [] });
+                        const dayOfWeek = d.getDay();
+                        
+                        let dailyTasks = taskMap[dateStr] ? [...taskMap[dateStr]] : [];
+                        dailyTasks.sort((a, b) => {
+                            let cA = a.contractor || ''; let cB = b.contractor || '';
+                            if (cA !== cB) return cA.localeCompare(cB);
+                            return a.id.localeCompare(b.id);
+                        });
+                        days.push({ day: i, dateStr: dateStr, isWeekend: dayOfWeek === 0 || dayOfWeek === 6, tasks: dailyTasks });
                     }
                     return days;
                 }
             },
             mounted() {
-                onAuthStateChanged(auth, u => this.user = u);
-                const q = query(tasksCollection, orderBy('createdAt', 'desc'), limit(150));
-                onSnapshot(q, snap => {
-                    snap.docChanges().forEach(change => {
-                        const data = { id: change.doc.id, ...change.doc.data(), expanded: false };
-                        const idx = this.tasks.findIndex(t => t.id === data.id);
+                window.addEventListener('online', () => this.isOnline = true);
+                window.addEventListener('offline', () => this.isOnline = false);
+
+                onAuthStateChanged(auth, (user) => {
+                    this.user = user;
+                });
+
+                try {
+                    const savedTasks = localStorage.getItem('site_tasks');
+                    if (savedTasks && savedTasks !== "undefined") {
+                        this.tasks = JSON.parse(savedTasks);
+                    }
+                } catch(e) {}
+
+                const qRecent = query(tasksCollection, orderBy('createdAt', 'desc'), limit(150));
+                onSnapshot(qRecent, { includeMetadataChanges: true }, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
                         if (change.type === "added" || change.type === "modified") {
-                            if (idx > -1) this.tasks[idx] = { ...this.tasks[idx], ...data };
-                            else this.tasks.push(data);
+                            const docData = change.doc.data();
+                            const id = change.doc.id;
+                            const idx = this.tasks.findIndex(t => t.id === id);
+                            if (idx !== -1) {
+                                this.tasks[idx] = { id, ...docData, expanded: this.tasks[idx].expanded };
+                            } else {
+                                this.tasks.push({ id, ...docData, expanded: false });
+                            }
                         }
                     });
-                });
+                    this.saveLocalState();
+                }, (error) => { console.error("即時連線錯誤:", error); });
+
                 this.loadMonthData(this.currentYear, this.currentMonth);
             },
             methods: {
                 async handleLogin() {
-                    try { await signInWithEmailAndPassword(auth, this.loginForm.email, this.loginForm.password); this.showLoginModal = false; }
-                    catch(e) { alert("登入失敗"); }
+                    this.isLoggingIn = true;
+                    this.loginForm.error = '';
+                    try {
+                        await signInWithEmailAndPassword(auth, this.loginForm.email, this.loginForm.password);
+                        this.showLoginModal = false;
+                        this.loginForm.email = '';
+                        this.loginForm.password = '';
+                    } catch (error) {
+                        this.loginForm.error = "帳號或密碼錯誤，請重新輸入。";
+                    } finally {
+                        this.isLoggingIn = false;
+                    }
                 },
                 handleLogout() { signOut(auth); },
-                getContractorColor(c) {
-                    const m = { '和億': 'bg-blue-600', '富懋': 'bg-emerald-600', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
-                    return m[c] || 'bg-slate-400';
-                },
-                getLocations(t) { return t.locations || [{phase: 'P2', building: t.building, floor: t.floor}]; },
-                isToday(s) { return s === this.todayStr; },
-                async loadMonthData(y, m) {
-                    const mStr = String(m+1).padStart(2,'0');
-                    const key = `${y}-${mStr}`;
-                    if (this.loadedMonths.includes(key)) return;
+                saveLocalState() { localStorage.setItem('site_tasks', JSON.stringify(this.tasks)); },
+                async loadMonthData(year, month) {
+                    let mStr = String(month + 1).padStart(2, '0');
+                    let monthKey = `${year}-${mStr}`;
+                    if (this.loadedMonths.includes(monthKey)) return;
+                    
                     this.isLoadingHistory = true;
+                    let lastDay = new Date(year, month + 1, 0).getDate();
+                    let startStr = `${year}-${mStr}-01`;
+                    let endStr = `${year}-${mStr}-${lastDay}`;
+                    
                     try {
-                        const q = query(tasksCollection, where("endDate", ">=", `${y}-${mStr}-01`), where("endDate", "<=", `${y}-${mStr}-31`));
-                        const snap = await getDocs(q);
-                        snap.forEach(doc => {
-                            if (!this.tasks.some(t => t.id === doc.id)) this.tasks.push({ id: doc.id, ...doc.data(), expanded: false });
+                        const q = query(tasksCollection, where("endDate", ">=", startStr), where("endDate", "<=", endStr));
+                        const snapshot = await getDocs(q);
+                        let newTasks = [];
+                        snapshot.forEach(doc => {
+                            if (!this.tasks.some(t => t.id === doc.id)) {
+                                newTasks.push({ id: doc.id, ...doc.data(), expanded: false });
+                            }
                         });
-                        this.loadedMonths.push(key);
-                    } finally { this.isLoadingHistory = false; }
+                        this.tasks.push(...newTasks);
+                        this.loadedMonths.push(monthKey);
+                        this.saveLocalState();
+                    } catch(e) {
+                        console.error("載入月份資料失敗:", e);
+                    } finally {
+                        this.isLoadingHistory = false;
+                    }
                 },
-                changeMonth(off) {
-                    this.currentMonth += off;
-                    if (this.currentMonth > 11) { this.currentMonth = 0; this.currentYear++; }
-                    else if (this.currentMonth < 0) { this.currentMonth = 11; this.currentYear--; }
-                    this.loadMonthData(this.currentYear, this.currentMonth);
+                exportCSV() {
+                    if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
+                    let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
+                    if (this.filters.status === 'all' && exportList.length > 150) {
+                        alert('「所有狀態」下匯出數量限制為 150 筆，系統已自動為您截取最早建立的 150 筆資料。');
+                        exportList = exportList.slice(0, 150);
+                    }
+
+                    let csvContent = '\uFEFF工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,備註,應辦申請單,停工原因\n';
+                    exportList.forEach(t => {
+                        let status = t.isSuspended ? '已停工' : ((t.isCompleted || this.isPast(t.endDate)) ? '已完工' : '進行中');
+                        let locs = this.getLocations(t);
+                        let phases = locs.map(l => l.phase).join('、');
+                        let buildings = locs.map(l => l.building).join('、');
+                        let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、');
+                        let remark = (t.remark || '').replace(/\n/g, ' ');
+                        let permits = (t.permits || []).join('、');
+                        let suspendReason = (t.suspendReason || '').replace(/\n/g, ' ');
+                        let row = `"${status}","${t.startDate||''}","${t.endDate||''}","${t.days||1}","${t.contractor||''}","${(t.managers||[]).join('、')}","${phases}","${buildings}","${floors}","${t.mainCategory||''}","${(t.subItems||[]).join('、')}","${remark}","${permits}","${suspendReason}"`;
+                        csvContent += row + '\n';
+                    });
+                    const link = document.createElement("a");
+                    link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })));
+                    link.setAttribute("download", `工程紀錄匯出_${this.todayStr}.csv`);
+                    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                },
+                resetFilters() { this.filters = { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' }; },
+                getLocations(task) { return task.locations && task.locations.length > 0 ? task.locations : [{ phase: 'P2', building: task.building, floor: task.floor }]; },
+                isTaskCompleted(task) { return task.isCompleted === true || task.isSuspended === true || this.isPast(task.endDate); },
+                canToggleComplete(task) { if (task.isCompleted) return task.completedDate === this.todayStr; return !task.isSuspended; },
+                canToggleSuspend(task) { if (task.isSuspended) return task.suspendDate === this.todayStr; return !task.isCompleted; },
+                async toggleCompleteStatus(task) {
+                    if (!this.user) return alert('權限不足，請先登入。');
+                    let isCompleted = !task.isCompleted; 
+                    let completedDate = isCompleted ? this.todayStr : null;
+                    try { await updateDoc(doc(db, 'tasks', task.id), { isCompleted, completedDate }); } catch (e) {}
+                },
+                async toggleSuspendStatus(task) {
+                    if (!this.user) return alert('權限不足，請先登入。');
+                    let isSuspended = !task.isSuspended; 
+                    let suspendReason = null; let suspendDate = null;
+                    let isCompleted = task.isCompleted; let completedDate = task.completedDate;
+                    if (isSuspended) {
+                        let reason = prompt("請輸入停工原因："); if (!reason || reason.trim() === "") return; 
+                        suspendReason = reason.trim(); suspendDate = this.todayStr; isCompleted = false; completedDate = null;
+                    }
+                    try { await updateDoc(doc(db, 'tasks', task.id), { isSuspended, suspendReason, suspendDate, isCompleted, completedDate }); } catch (e) {}
+                },
+                async confirmDelete(task) {
+                    if (!this.user) return alert('權限不足，請先登入。');
+                    if (confirm(`確定要刪除「${task.mainCategory}」嗎？`)) {
+                        this.tasks = this.tasks.filter(t => t.id !== task.id);
+                        try { await deleteDoc(doc(db, 'tasks', task.id)); } catch (e) {}
+                    }
+                },
+                async saveTask() {
+                    if (!this.user) return alert('權限不足，請先登入。');
+                    const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days, this.newTask.includeSaturday, this.newTask.includeSunday);
+                    let locationString = this.newTask.locations.map(l => `${l.phase} ${l.building}${l.floor!=='無'?' '+l.floor:''}`).join(' / ');
+                    const formattedData = {
+                        startDate: this.newTask.startDate, days: this.newTask.days, locations: JSON.parse(JSON.stringify(this.newTask.locations)),
+                        building: this.newTask.locations[0].building, floor: this.newTask.locations[0].floor, 
+                        contractor: this.newTask.contractor.trim(), managers: [...this.newTask.managers.filter(m => m.trim() !== '')], 
+                        includeSaturday: this.newTask.includeSaturday, includeSunday: this.newTask.includeSunday,
+                        mainCategory: this.newTask.mainCategory, remark: this.newTask.remark ? this.newTask.remark.trim() : '', 
+                        subItems: [...this.newTask.subItems], permits: [...this.newTask.permits],
+                        location: locationString, endDate: end,
+                        isCompleted: this.newTask.isCompleted || false, completedDate: this.newTask.completedDate || null,
+                        isSuspended: this.newTask.isSuspended || false, suspendReason: this.newTask.suspendReason || null, suspendDate: this.newTask.suspendDate || null
+                    };
+                    try {
+                        if (this.editingTaskId) await updateDoc(doc(db, 'tasks', this.editingTaskId), formattedData);
+                        else {
+                            formattedData.createdAt = serverTimestamp();
+                            await addDoc(tasksCollection, formattedData);
+                        }
+                        this.showModal = false;
+                        let [sy, sm] = this.newTask.startDate.split('-'); this.currentYear = parseInt(sy, 10); this.currentMonth = parseInt(sm, 10) - 1;
+                        this.loadMonthData(this.currentYear, this.currentMonth);
+                    } catch (e) { alert("儲存異常，請檢查網路。"); }
+                },
+                getContractorColor(contractor) {
+                    const fixedMap = { '和億': 'bg-blue-600', '富懋': 'bg-[#10b981]', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
+                    if (!contractor) return 'bg-slate-400'; let name = contractor.trim(); if (fixedMap[name]) return fixedMap[name];
+                    const fallbackColors = ['bg-pink-600', 'bg-teal-600', 'bg-fuchsia-600', 'bg-violet-600'];
+                    let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
+                    return fallbackColors[hash % fallbackColors.length];
                 },
                 openNewModal() {
                     this.editingTaskId = null;
-                    this.newTask = { startDate: this.todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], contractor: '', managers: [''], mainCategory: '天線安裝', remark: '', subItems: [], permits: [] };
+                    this.newTask = {
+                        startDate: this.todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
+                        contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
+                        mainCategory: '', remark: '', subItems: [], permits: []
+                    };
                     this.showModal = true;
                 },
                 openEditModal(task) {
                     this.editingTaskId = task.id;
-                    this.newTask = JSON.parse(JSON.stringify(task));
+                    this.newTask = { 
+                        ...task, 
+                        locations: task.locations && task.locations.length > 0 ? JSON.parse(JSON.stringify(task.locations)) : [{ phase: 'P2', building: task.building, floor: task.floor }],
+                        managers: task.managers && task.managers.length > 0 ? [...task.managers] : [''],
+                        remark: task.remark || '', permits: task.permits ? [...task.permits] : []
+                    };
                     this.showModal = true;
                 },
-                async saveTask() {
-                    const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days);
-                    const data = { ...this.newTask, endDate: end, building: this.newTask.locations[0].building, floor: this.newTask.locations[0].floor };
-                    try {
-                        if (this.editingTaskId) await updateDoc(doc(db, 'tasks', this.editingTaskId), data);
-                        else { data.createdAt = serverTimestamp(); await addDoc(tasksCollection, data); }
-                        this.showModal = false;
-                    } catch(e) { alert("儲存失敗"); }
+                handleCategoryChange() {
+                    this.newTask.subItems = []; this.newTask.permits = [];
+                    if (this.newTask.mainCategory === '物料運送') this.newTask.permits = ['車輛進廠放行單', '物料進出放行單'];
                 },
-                calculateEndDate(start, days) {
-                    let d = new Date(start);
-                    d.setDate(d.getDate() + (parseInt(days)-1));
-                    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                calculateEndDate(start, days, incSat, incSun) {
+                    let [y, m, d] = start.split('-'); let date = new Date(y, m - 1, d);
+                    let totalDays = parseInt(days, 10); let count = 1; 
+                    while (count < totalDays) {
+                        date.setDate(date.getDate() + 1); let dayOfWeek = date.getDay(); let isWorkDay = true;
+                        if (dayOfWeek === 6 && !incSat) isWorkDay = false; if (dayOfWeek === 0 && !incSun) isWorkDay = false; 
+                        if (isWorkDay) count++;
+                    }
+                    let ey = date.getFullYear(); let em = String(date.getMonth() + 1).padStart(2, '0'); let ed = String(date.getDate()).padStart(2, '0');
+                    return `${ey}-${em}-${ed}`;
                 },
-                async toggleCompleteStatus(task) { await updateDoc(doc(db,'tasks',task.id), {isCompleted: true, completedDate: this.todayStr}); },
-                async toggleSuspendStatus(task) { 
-                    const r = prompt("停工原因：");
-                    if(r) await updateDoc(doc(db,'tasks',task.id), {isSuspended: true, suspendReason: r, suspendDate: this.todayStr}); 
+                async expandHistory() {
+                    this.historyVisibleLimit += 10;
+                    let loopGuard = 0;
+                    while (this.completedTasks.length < this.historyVisibleLimit && loopGuard < 3) {
+                        this.historyFetchCursor.month--;
+                        if (this.historyFetchCursor.month < 0) {
+                            this.historyFetchCursor.month = 11;
+                            this.historyFetchCursor.year--;
+                        }
+                        await this.loadMonthData(this.historyFetchCursor.year, this.historyFetchCursor.month);
+                        loopGuard++; 
+                    }
                 },
-                async confirmDelete(task) { if(confirm("確定刪除？")) await deleteDoc(doc(db,'tasks',task.id)); },
-                scrollToTask(task) {
-                    const t = this.tasks.find(x => x.id === task.id);
-                    if(t) t.expanded = true;
+                loadMore() { this.visibleLimit += 10; },
+                hideCompletedTasks() { 
+                    this.historyVisibleLimit = 0; 
+                    this.forcedVisibleTaskId = null; 
+                    this.historyFetchCursor = { year: this.currentYear, month: this.currentMonth };
+                },
+                async scrollToTask(task) {
+                    const targetTask = this.tasks.find(t => t.id === task.id);
+                    if (targetTask) targetTask.expanded = true;
+
+                    if (this.isTaskCompleted(task)) { 
+                        this.forcedVisibleTaskId = task.id; 
+                    } else {
+                        const taskIndex = this.activeTasks.findIndex(t => t.id === task.id);
+                        if (taskIndex !== -1 && taskIndex >= this.visibleLimit) this.visibleLimit = taskIndex + 5;
+                    }
                     nextTick(() => {
-                        const el = document.getElementById('task-'+task.id);
-                        if(el) {
-                            window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' });
-                            el.classList.add('highlight-flash');
+                        const element = document.getElementById('task-' + task.id);
+                        if (element) {
+                            const offsetPosition = element.getBoundingClientRect().top + window.pageYOffset - 80;
+                            window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+                            element.classList.remove('highlight-flash'); void element.offsetWidth; element.classList.add('highlight-flash');
                         }
                     });
                 },
-                expandHistory() { this.historyVisibleLimit += 10; },
-                hideCompletedTasks() { this.historyVisibleLimit = 0; },
-                loadMore() { this.visibleLimit += 10; },
-                resetFilters() { this.filters = { keyword: '', contractor: '', status: 'all' }; }
+                isPast(dateStr) { return dateStr < this.todayStr; },
+                changeMonth(offset) {
+                    this.currentMonth += offset;
+                    if (this.currentMonth > 11) { this.currentMonth = 0; this.currentYear++; }
+                    else if (this.currentMonth < 0) { this.currentMonth = 11; this.currentYear--; }
+                    this.loadMonthData(this.currentYear, this.currentMonth);
+                },
+                isToday(s) { return s === this.todayStr; }
             }
-        }).mount('#app');
+        }).mount('#app')
     </script>
 </body>
 </html>
