@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v38.1 (軌道修復版)</title>
+    <title>工程執行紀錄系統 v39 (雙重排序版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -16,8 +16,6 @@
         }
         [v-cloak] { display: none; }
         input::-webkit-calendar-picker-indicator { opacity: 1; cursor: pointer; }
-        
-        /* 確保行事曆軌道高度一致，20px 高度中保留空間給間距 */
         .calendar-track { height: 20px; position: relative; }
     </style>
 </head>
@@ -578,9 +576,14 @@
                         if (this.sortBy === 'contractor') {
                             let cA = a.contractor || ''; let cB = b.contractor || '';
                             if (cA !== cB) return cA.localeCompare(cB);
-                            return a.startDate.localeCompare(b.startDate);
+                            if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
+                            return b.days - a.days;
                         } else {
-                            return a.startDate.localeCompare(b.startDate);
+                            // 雙重排序邏輯：1.開始時間 2.包商名稱 3.天數
+                            if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
+                            let cA = a.contractor || ''; let cB = b.contractor || '';
+                            if (cA !== cB) return cA.localeCompare(cB);
+                            return b.days - a.days;
                         }
                     });
                     return active;
@@ -588,7 +591,12 @@
                 visibleActiveTasks() { return this.activeTasks.slice(0, this.visibleLimit); },
                 completedTasks() {
                     let completed = this.filteredTasks.filter(t => this.isTaskCompleted(t));
-                    completed.sort((a, b) => b.endDate.localeCompare(a.endDate));
+                    completed.sort((a, b) => {
+                        if (b.endDate !== a.endDate) return b.endDate.localeCompare(a.endDate);
+                        let cA = a.contractor || ''; let cB = b.contractor || '';
+                        if (cA !== cB) return cA.localeCompare(cB);
+                        return b.days - a.days;
+                    });
                     return completed;
                 },
                 visibleCompletedTasks() {
@@ -620,8 +628,11 @@
                         }
                     });
 
+                    // 行事曆軌道分配排序邏輯：1.開始時間 2.包商名稱 3.天數
                     monthTasks.sort((a, b) => {
                         if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
+                        let cA = a.contractor || ''; let cB = b.contractor || '';
+                        if (cA !== cB) return cA.localeCompare(cB);
                         return b.days - a.days; 
                     });
 
@@ -696,7 +707,6 @@
                                 if (numTrackIndex > dayData.maxTrack) dayData.maxTrack = numTrackIndex;
                                 
                                 let baseColor = this.getContractorColor(task.contractor);
-                                // 將圓角改為 2px，並利用左右設定維持無縫連接
                                 let classes = baseColor + ' ';
                                 
                                 if (task.isSuspended) {
