@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v38</title>
+    <title>工程執行紀錄系統 v38.1 (軌道修復版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -17,7 +17,7 @@
         [v-cloak] { display: none; }
         input::-webkit-calendar-picker-indicator { opacity: 1; cursor: pointer; }
         
-        /* 確保行事曆軌道高度一致 */
+        /* 確保行事曆軌道高度一致，20px 高度中保留空間給間距 */
         .calendar-track { height: 20px; position: relative; }
     </style>
 </head>
@@ -68,12 +68,12 @@
                         <span v-if="day.day" class="text-xs font-bold mb-1 px-1.5 text-left" :class="day.isWeekend ? 'text-red-400' : 'text-slate-400'">{{ day.day }}</span>
                         
                         <div class="flex-grow flex flex-col relative w-full pt-[2px]">
-                            <div v-for="trackIndex in Math.max(day.maxTrack + 1, 0)" :key="'track-'+trackIndex" class="calendar-track w-full flex items-center">
-                                <div v-if="day.tracks[trackIndex]" 
-                                     @click.stop="scrollToTask(day.tracks[trackIndex].task)"
-                                     class="text-[10px] py-[2px] truncate text-white font-bold cursor-pointer hover:brightness-110 shadow-sm absolute inset-y-0 flex items-center px-1.5 z-10" 
-                                     :class="day.tracks[trackIndex]._calendarClasses">
-                                     <span v-if="day.tracks[trackIndex].isTextVisible">{{ day.tracks[trackIndex].task.contractor || '未指定' }}</span>
+                            <div v-for="n in (day.maxTrack >= 0 ? day.maxTrack + 1 : 0)" :key="'track-'+(n-1)" class="calendar-track w-full">
+                                <div v-if="day.tracks[n-1]" 
+                                     @click.stop="scrollToTask(day.tracks[n-1].task)"
+                                     class="text-[9px] truncate text-white font-bold cursor-pointer hover:brightness-110 shadow-sm absolute top-0 bottom-[2px] flex items-center px-1.5 z-10" 
+                                     :class="day.tracks[n-1]._calendarClasses">
+                                     <span v-if="day.tracks[n-1].isTextVisible">{{ day.tracks[n-1].task.contractor || '未指定' }}</span>
                                 </div>
                             </div>
                         </div>
@@ -608,17 +608,13 @@
                     const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
                     const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
                     
-                    // 1. 先將本月的任務整理並排序 (越早開始的優先，長的優先)
                     let monthTasks = [];
                     this.filteredTasks.forEach(task => {
                         if (!task.startDate || !task.endDate) return;
-                        
-                        // 判斷任務是否有落入本月
                         let tStart = new Date(task.startDate);
                         let tEnd = new Date(task.endDate);
                         let mStart = new Date(this.currentYear, this.currentMonth, 1);
                         let mEnd = new Date(this.currentYear, this.currentMonth, daysInMonth);
-                        
                         if (tEnd >= mStart && tStart <= mEnd) {
                             monthTasks.push(task);
                         }
@@ -626,19 +622,16 @@
 
                     monthTasks.sort((a, b) => {
                         if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
-                        return b.days - a.days; // 天數長的先排
+                        return b.days - a.days; 
                     });
 
-                    // 2. 準備軌道佔用表：trackUsage[dayIndex][trackIndex] = taskId
-                    // 確保同一個 task.id 在同一天不會佔用兩個 track
                     let trackUsage = Array.from({ length: 31 }, () => ({}));
-                    let taskTracks = {}; // 記錄每個 taskId 被分配到的 trackIndex
+                    let taskTracks = {}; 
 
                     monthTasks.forEach(task => {
                         let tStart = new Date(task.startDate);
                         let tEnd = new Date(task.endDate);
                         
-                        // 找一個空軌道
                         let trackIndex = 0;
                         let foundTrack = false;
                         
@@ -655,15 +648,10 @@
                                 }
                                 curDate.setDate(curDate.getDate() + 1);
                             }
-                            
-                            if (canUseTrack) {
-                                foundTrack = true;
-                            } else {
-                                trackIndex++;
-                            }
+                            if (canUseTrack) foundTrack = true;
+                            else trackIndex++;
                         }
 
-                        // 標記軌道被佔用
                         let curDate = new Date(tStart);
                         while (curDate <= tEnd) {
                             if (curDate.getFullYear() === this.currentYear && curDate.getMonth() === this.currentMonth) {
@@ -682,7 +670,6 @@
                         taskTracks[task.id] = trackIndex;
                     });
 
-                    // 3. 渲染出每天的陣列
                     let days = [];
                     for (let i = 0; i < firstDay; i++) days.push({ day: null, dateStr: null, tracks: {}, maxTrack: -1 });
                     
@@ -709,7 +696,7 @@
                                 if (numTrackIndex > dayData.maxTrack) dayData.maxTrack = numTrackIndex;
                                 
                                 let baseColor = this.getContractorColor(task.contractor);
-                                // 調整為 2px 圓角
+                                // 將圓角改為 2px，並利用左右設定維持無縫連接
                                 let classes = baseColor + ' ';
                                 
                                 if (task.isSuspended) {
@@ -728,7 +715,6 @@
                                     classes += 'rounded-none left-0 right-0';
                                 }
 
-                                // 判斷是否要顯示文字：任務開始第一天，或者是每週的星期日（避免文字被截斷到看不見）
                                 let isTextVisible = (dateStr === task.startDate || dayOfWeek === 0 || d.getDate() === 1);
 
                                 dayData.tracks[numTrackIndex] = {
