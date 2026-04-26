@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v45 (沉浸式全螢幕版)</title>
+    <title>工程執行紀錄系統 v46 (完美沉浸全螢幕版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -19,15 +19,12 @@
         
         .calendar-track { height: 20px; position: relative; }
         .touch-pan-y { touch-action: pan-y; }
-        
-        /* Header 滑動過場動畫 */
-        .header-transition { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     </style>
 </head>
 <body class="bg-gray-50 font-sans scroll-smooth overflow-x-hidden">
     <div id="app" v-cloak class="max-w-md mx-auto bg-white min-h-screen shadow-lg flex flex-col relative overflow-x-hidden pb-20">
         
-        <header class="bg-slate-800 text-white p-4 fixed top-0 left-0 right-0 w-full max-w-md mx-auto z-40 shadow-md flex justify-between items-center h-[72px] header-transition"
+        <header class="bg-slate-800 text-white p-4 fixed top-0 left-0 right-0 w-full max-w-md mx-auto z-40 shadow-md flex justify-between items-center h-[72px] transition-transform duration-300 ease-in-out"
                 :class="showHeader ? 'translate-y-0' : '-translate-y-full'">
             <h1 class="text-xl font-bold">🏗️ 現場工進系統</h1>
             
@@ -50,11 +47,12 @@
             </div>
         </header>
 
-        <main class="flex-grow flex flex-col pt-2" @scroll="handleScroll">
+        <main class="flex-grow flex flex-col transition-[padding] duration-300 ease-in-out"
+              :class="showHeader ? 'pt-[88px]' : 'pt-4'">
             
-            <div class="min-h-screen flex flex-col px-4 pb-2 relative z-10 bg-gray-50">
+            <div class="min-h-[calc(100vh-20px)] flex flex-col px-4 pb-2 relative z-10 bg-gray-50">
                 
-                <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3 relative flex-shrink-0 flex flex-col mt-2 z-20">
+                <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3 relative flex-shrink-0 flex flex-col z-20">
                     <div v-if="isLoadingHistory" class="absolute top-2 right-2 flex items-center justify-center bg-white/90 backdrop-blur rounded-full px-2 py-1 text-[9px] font-bold text-blue-500 shadow border border-blue-100 z-30">
                         <span class="animate-spin mr-1">🔄</span> 載入資料...
                     </div>
@@ -73,9 +71,9 @@
                          @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd"
                          @mousedown="handleMouseDown" @mousemove="handleMouseMove" @mouseup="handleMouseUp" @mouseleave="handleMouseLeave">
                          
-                        <div class="flex w-[300%] items-start" 
-                             :class="calendarTransition"
-                             :style="{ transform: `translateX(calc(-33.333333% + ${swipeOffset}px))` }">
+                        <div class="flex w-[300%] items-start will-change-transform" 
+                             ref="swipeContainer"
+                             style="transform: translateX(-33.333333%);">
                             
                             <div v-for="(grid, mIndex) in threeMonthsGrids" :key="mIndex" class="w-1/3 grid grid-cols-7 border-t border-l border-slate-200 bg-white select-none">
                                 <div v-for="(day, index) in grid" :key="index" class="min-h-[75px] border-b border-r border-slate-200 py-1 flex flex-col overflow-hidden" :class="{'bg-blue-50/40': isToday(day.dateStr), 'bg-slate-50/50': day.isWeekend && day.day}">
@@ -97,7 +95,7 @@
                     </div>
                 </div>
 
-                <div class="mt-4 flex flex-col items-center animate-bounce text-slate-400 opacity-70 z-10 mb-8">
+                <div class="mt-12 flex flex-col items-center animate-bounce text-slate-400 opacity-70 z-10 mb-6">
                     <span class="text-[10px] font-black tracking-[0.2em] mb-1">SCROLL</span>
                     <span class="text-xl leading-none">▼</span>
                 </div>
@@ -568,9 +566,11 @@
                     isSwipingMotion: false, 
                     calendarTransition: 'none',
                     
-                    // Header 滾動隱藏相關
+                    // Header 隱藏控制
                     lastScrollPosition: 0,
-                    showHeader: true
+                    showHeader: false,
+                    mainTouchStartY: 0,
+                    isAtTopWhenTouchStarted: false,
                 }
             },
             computed: {
@@ -667,7 +667,11 @@
             mounted() {
                 window.addEventListener('online', () => this.isOnline = true);
                 window.addEventListener('offline', () => this.isOnline = false);
-                window.addEventListener('scroll', this.handleScroll, { passive: true });
+                
+                // 全域監聽滑動，用於顯示/隱藏 Header
+                window.addEventListener('touchstart', this.handleGlobalTouchStart, { passive: true });
+                window.addEventListener('touchmove', this.handleGlobalTouchMove, { passive: true });
+                window.addEventListener('wheel', this.handleGlobalWheel, { passive: true });
 
                 onAuthStateChanged(auth, (user) => {
                     this.user = user;
@@ -690,28 +694,36 @@
                 }, (error) => { console.error("即時連線錯誤:", error); });
 
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
-                
-                // 初次載入將畫面往下拉，隱藏 Header
-                setTimeout(() => {
-                    if (window.scrollY === 0) {
-                        window.scrollTo({ top: 72, behavior: 'smooth' });
-                        this.showHeader = false;
-                    }
-                }, 100);
             },
             unmounted() {
-                window.removeEventListener('scroll', this.handleScroll);
+                window.removeEventListener('touchstart', this.handleGlobalTouchStart);
+                window.removeEventListener('touchmove', this.handleGlobalTouchMove);
+                window.removeEventListener('wheel', this.handleGlobalWheel);
             },
             methods: {
-                handleScroll() {
-                    const currentScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
-                    if (currentScrollPosition < 0) return;
-                    
-                    // 往上拉顯示 Header，往下捲隱藏 Header
-                    if (Math.abs(currentScrollPosition - this.lastScrollPosition) < 20) return;
-                    this.showHeader = currentScrollPosition < this.lastScrollPosition || currentScrollPosition <= 72;
-                    this.lastScrollPosition = currentScrollPosition;
+                // Header 顯示隱藏邏輯：只有在頁面最頂端，且再次往上滑（下拉）時才顯示
+                handleGlobalTouchStart(e) {
+                    this.mainTouchStartY = e.touches ? e.touches[0].clientY : e.clientY;
+                    this.isAtTopWhenTouchStarted = (window.scrollY <= 5);
                 },
+                handleGlobalTouchMove(e) {
+                    let currentY = e.touches ? e.touches[0].clientY : e.clientY;
+                    let deltaY = currentY - this.mainTouchStartY;
+
+                    if (this.isAtTopWhenTouchStarted && window.scrollY <= 5 && deltaY > 40) {
+                        this.showHeader = true;
+                    } else if (deltaY < -20) {
+                        this.showHeader = false;
+                    }
+                },
+                handleGlobalWheel(e) {
+                    if (window.scrollY <= 5 && e.deltaY < 0) {
+                        this.showHeader = true;
+                    } else if (e.deltaY > 0) {
+                        this.showHeader = false;
+                    }
+                },
+
                 generateMonthGrid(targetYear, targetMonth) {
                     const firstDay = new Date(targetYear, targetMonth, 1).getDay();
                     const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
@@ -832,8 +844,8 @@
                 handleTouchStart(e) {
                     this.touchStartX = e.touches ? e.touches[0].clientX : e.clientX;
                     this._isSwiping = true;
-                    if (this.$refs.calendarViewport) {
-                        this.$refs.calendarViewport.firstElementChild.style.transition = 'none';
+                    if (this.$refs.swipeContainer) {
+                        this.$refs.swipeContainer.style.transition = 'none';
                     }
                 },
                 handleTouchMove(e) {
@@ -841,8 +853,8 @@
                     const currentX = e.touches ? e.touches[0].clientX : e.clientX;
                     this._deltaX = currentX - this.touchStartX;
                     
-                    if (this.$refs.calendarViewport) {
-                        this.$refs.calendarViewport.firstElementChild.style.transform = `translateX(calc(-33.333333% + ${this._deltaX}px))`;
+                    if (this.$refs.swipeContainer) {
+                        this.$refs.swipeContainer.style.transform = `translateX(calc(-33.333333% + ${this._deltaX}px))`;
                     }
                 },
                 handleTouchEnd(e) {
@@ -851,13 +863,13 @@
                     const threshold = 50;
                     
                     if (this._deltaX > threshold) {
-                        this.animateSwipe(-1, true); 
+                        this.executeSwipeAnimation(-1); 
                     } else if (this._deltaX < -threshold) {
-                        this.animateSwipe(1, true); 
+                        this.executeSwipeAnimation(1); 
                     } else {
-                        if (this.$refs.calendarViewport) {
-                            this.$refs.calendarViewport.firstElementChild.style.transition = 'transform 0.3s ease-out';
-                            this.$refs.calendarViewport.firstElementChild.style.transform = 'translateX(-33.333333%)';
+                        if (this.$refs.swipeContainer) {
+                            this.$refs.swipeContainer.style.transition = 'transform 0.3s ease-out';
+                            this.$refs.swipeContainer.style.transform = 'translateX(-33.333333%)';
                         }
                     }
                     this._deltaX = 0;
@@ -867,9 +879,9 @@
                 handleMouseUp(e) { this.handleTouchEnd(e); },
                 handleMouseLeave(e) { if(this._isSwiping) this.handleTouchEnd(e); },
 
-                animateSwipe(direction, fromGesture = false) {
-                    const container = this.$refs.calendarViewport ? this.$refs.calendarViewport.firstElementChild : null;
-                    if (!container) return;
+                executeSwipeAnimation(direction) {
+                    if (!this.$refs.swipeContainer) return;
+                    const container = this.$refs.swipeContainer;
                     
                     const targetPercent = direction === 1 ? '-66.666667%' : '0%';
                     
@@ -883,6 +895,12 @@
                         container.style.transform = 'translateX(-33.333333%)';
                         
                     }, 300); 
+                },
+
+                animateSwipe(direction) {
+                    if (this.$refs.swipeContainer) {
+                        this.executeSwipeAnimation(direction);
+                    }
                 },
 
                 async loadSurroundingMonths(year, month) {
@@ -1095,7 +1113,7 @@
                     nextTick(() => {
                         const element = document.getElementById('task-' + task.id);
                         if (element) {
-                            // 考量到有固定 Header 的高度，位移量加上 120 的 offset 確保不會被蓋住
+                            // 當有 Header 推擠時，減去安全間距 120px，確保滾動後卡片不會被頂部吃掉
                             const offsetPosition = element.getBoundingClientRect().top + window.pageYOffset - 120;
                             window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
                             element.classList.remove('highlight-flash'); void element.offsetWidth; element.classList.add('highlight-flash');
