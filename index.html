@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v46.2 (專業報表版)</title>
+    <title>工程執行紀錄系統 v46.3 (版面與報表優化版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -703,12 +703,7 @@
 
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
                 
-                setTimeout(() => {
-                    if (window.scrollY === 0) {
-                        window.scrollTo({ top: 72, behavior: 'smooth' });
-                        this.showHeader = false;
-                    }
-                }, 100);
+                // 修正：不再自動滾動頁面，單純將 Header 隱藏，保留完整的行事曆於第一屏
             },
             unmounted() {
                 window.removeEventListener('touchstart', this.handleGlobalTouchStart);
@@ -984,7 +979,6 @@
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
                     let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
                     
-                    // --- 工作表 1 資料 ---
                     let sheet1Data = [
                         ['工項狀態', '開始日期', '結束日期', '工作天', '包商/班組', '管理職', '廠區', '大樓', '樓層', '主要工項', '施作細項', '備註', '應辦申請單', '停工原因']
                     ];
@@ -1006,9 +1000,9 @@
                         ]);
                     });
 
-                    // --- 工作表 2 資料與邏輯 ---
+                    // 調整了欄位順序以符合要求
                     let sheet2Data = [
-                        ['日期', '星期', '包商/班組', '主要工項', '施作細項', '備註', '應辦申請單', '廠區', '大樓', '樓層']
+                        ['日期', '星期', '包商/班組', '廠區', '大樓', '樓層', '主要工項', '施作細項', '備註', '應辦申請單']
                     ];
                     
                     let dailyMap = {};
@@ -1042,7 +1036,6 @@
                     
                     allDates.forEach(dateStr => {
                         let tasksOnDay = dailyMap[dateStr];
-                        // 針對當天的任務，依照包商名稱進行排序
                         tasksOnDay.sort((a, b) => {
                             let cA = a.contractor || '';
                             let cB = b.contractor || '';
@@ -1050,7 +1043,6 @@
                         });
                         
                         let dObj = new Date(dateStr);
-                        // 格式化為: 4月27日
                         let dateDisplay = `${dObj.getMonth() + 1}月${dObj.getDate()}日`;
                         let dayDisplay = dayNames[dObj.getDay()];
                         
@@ -1061,18 +1053,17 @@
                             let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、');
                             let remark = (t.remark || '').replace(/\n/g, ' ');
                             
-                            // 只有第一筆資料會印出日期與星期，創造視覺群組
                             sheet2Data.push([
                                 idx === 0 ? dateDisplay : '',
                                 idx === 0 ? dayDisplay : '',
                                 t.contractor || '',
+                                phases,
+                                buildings,
+                                floors,
                                 t.mainCategory || '',
                                 (t.subItems || []).join('、'),
                                 remark,
-                                (t.permits || []).join('、'),
-                                phases,
-                                buildings,
-                                floors
+                                (t.permits || []).join('、')
                             ]);
                         });
                     });
@@ -1081,7 +1072,6 @@
                     const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
                     const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
 
-                    // 定義共用樣式
                     const headerStyle = {
                         font: { bold: true, color: { rgb: "000000" } },
                         fill: { fgColor: { rgb: "D9D9D9" } },
@@ -1111,7 +1101,6 @@
                         }
                     };
 
-                    // 套用樣式到工作表 1
                     let range1 = XLSX.utils.decode_range(ws1['!ref']);
                     for (let R = range1.s.r; R <= range1.e.r; ++R) {
                         for (let C = range1.s.c; C <= range1.e.c; ++C) {
@@ -1122,7 +1111,6 @@
                     }
                     ws1['!cols'] = [{wch:10},{wch:12},{wch:12},{wch:8},{wch:12},{wch:15},{wch:10},{wch:10},{wch:10},{wch:15},{wch:25},{wch:30},{wch:20},{wch:15}];
 
-                    // 套用樣式到工作表 2 (包含雙色背景)
                     let range2 = XLSX.utils.decode_range(ws2['!ref']);
                     for (let R = range2.s.r; R <= range2.e.r; ++R) {
                         for (let C = range2.s.c; C <= range2.e.c; ++C) {
@@ -1138,7 +1126,8 @@
                             }
                         }
                     }
-                    ws2['!cols'] = [{wch:12},{wch:6},{wch:15},{wch:15},{wch:25},{wch:35},{wch:20},{wch:8},{wch:8},{wch:8}];
+                    // 更新欄寬設定以符合新的排列順序
+                    ws2['!cols'] = [{wch:12},{wch:6},{wch:15},{wch:8},{wch:8},{wch:8},{wch:15},{wch:25},{wch:35},{wch:20}];
 
                     XLSX.utils.book_append_sheet(wb, ws1, "原始清單");
                     XLSX.utils.book_append_sheet(wb, ws2, "每日排程");
