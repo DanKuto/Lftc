@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v46.3 (版面與報表優化版)</title>
+    <title>工程執行紀錄系統 v46.4 (選單更新版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -513,17 +513,21 @@
         const CONFIG = {
             buildings: ['FAB', 'CUP', 'OFFICE', 'SUP', '倉庫'],
             floors: ['LB1', 'LB2', 'L10', 'L20', 'L30', 'L40', 'L50', 'L60', 'L70', 'LR1', 'LR2'],
-            contractors: ['領鋒', '和億', '富懋', '明辰', '明凱', '寰霈', '金鐠鑼'],
+            // --- 更新：加入「宏鎝」 ---
+            contractors: ['領鋒', '和億', '宏鎝', '富懋', '明辰', '明凱', '寰霈', '金鐠鑼'],
             managers: ['N/A', '睿智', '昱凱', '國展', '旭承', '香雲', '玉琳', '怡霈', '承憲', '庭綺', '語宸'],
+            // --- 更新：修改選項與細項 ---
             categories: {
                 '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'],
                 '機櫃安裝': ['機櫃定位', '機櫃下線槽安裝', '設備安裝'],
                 '開盤送電': ['電線佈放', '接臨時電盤', '接正式電盤', '結線未送電'], 
                 '話機安裝': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'],
-                '備料': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
+                '器材備料': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
                 '物料運送': ['設備進場', '線材搬運', '廢料清運'],
-                '吊掛作業': ['吊車進場', '設備起降', '交維佈設', '人員淨空'], 
-                '測PIM': ['查詢修正', '負載測試', 'PIM量測', '報告產出']
+                '吊掛作業': ['器具進場', '設備起降'], 
+                '測PIM': ['查詢修正', '負載測試', 'PIM量測', '報告產出'],
+                '訊號改善': ['訊號查修', '設備維修'],
+                '設備驗收': ['設備驗收', '疑點拍攝']
             }
         };
 
@@ -599,7 +603,7 @@
                 },
                 availablePermits() {
                     if (!this.newTask.mainCategory) return [];
-                    if (this.newTask.mainCategory === '備料') return []; 
+                    if (this.newTask.mainCategory === '器材備料') return []; 
                     if (this.newTask.mainCategory === '物料運送') return ['車輛進廠放行單', '物料進出放行單']; 
                     return ['一般施工單', '變電站申請', '離架申請', '天花板申請']; 
                 },
@@ -669,6 +673,9 @@
                         if (forcedTask && !visibleList.find(t => t.id === forcedTask.id)) visibleList.unshift(forcedTask);
                     }
                     return visibleList;
+                },
+                calendarDays() {
+                    return this.threeMonthsGrids[1]; 
                 }
             },
             mounted() {
@@ -703,7 +710,12 @@
 
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
                 
-                // 修正：不再自動滾動頁面，單純將 Header 隱藏，保留完整的行事曆於第一屏
+                setTimeout(() => {
+                    if (window.scrollY === 0) {
+                        window.scrollTo({ top: 72, behavior: 'smooth' });
+                        this.showHeader = false;
+                    }
+                }, 100);
             },
             unmounted() {
                 window.removeEventListener('touchstart', this.handleGlobalTouchStart);
@@ -974,6 +986,7 @@
                     }
                 },
                 handleLogout() { signOut(auth); },
+                saveLocalState() { localStorage.setItem('site_tasks', JSON.stringify(this.tasks)); },
                 
                 exportExcel() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
@@ -1000,7 +1013,6 @@
                         ]);
                     });
 
-                    // 調整了欄位順序以符合要求
                     let sheet2Data = [
                         ['日期', '星期', '包商/班組', '廠區', '大樓', '樓層', '主要工項', '施作細項', '備註', '應辦申請單']
                     ];
@@ -1126,7 +1138,6 @@
                             }
                         }
                     }
-                    // 更新欄寬設定以符合新的排列順序
                     ws2['!cols'] = [{wch:12},{wch:6},{wch:15},{wch:8},{wch:8},{wch:8},{wch:15},{wch:25},{wch:35},{wch:20}];
 
                     XLSX.utils.book_append_sheet(wb, ws1, "原始清單");
@@ -1188,8 +1199,18 @@
                         this.loadSurroundingMonths(this.currentYear, this.currentMonth);
                     } catch (e) { alert("儲存異常，請檢查網路。"); }
                 },
+                // --- 更新：加入「宏鎝」的顏色設定 ---
                 getContractorColor(contractor) {
-                    const fixedMap = { '和億': 'bg-blue-600', '富懋': 'bg-[#10b981]', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
+                    const fixedMap = { 
+                        '和億': 'bg-blue-600', 
+                        '宏鎝': 'bg-orange-500', 
+                        '富懋': 'bg-[#10b981]', 
+                        '明辰': 'bg-rose-500', 
+                        '明凱': 'bg-amber-600', 
+                        '金鐠鑼': 'bg-purple-600', 
+                        '領鋒': 'bg-cyan-600', 
+                        '寰霈': 'bg-indigo-600' 
+                    };
                     if (!contractor) return 'bg-slate-400'; let name = contractor.trim(); if (fixedMap[name]) return fixedMap[name];
                     const fallbackColors = ['bg-pink-600', 'bg-teal-600', 'bg-fuchsia-600', 'bg-violet-600'];
                     let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
