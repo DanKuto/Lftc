@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v40 (滑動切換版)</title>
+    <title>工程執行紀錄系統 v41 (滑動切換版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -16,9 +16,11 @@
         }
         [v-cloak] { display: none; }
         input::-webkit-calendar-picker-indicator { opacity: 1; cursor: pointer; }
+        
+        /* 行事曆軌道高度 */
         .calendar-track { height: 20px; position: relative; }
         
-        /* 避免瀏覽器預設的左右滑動上一頁/下一頁干擾行事曆操作 */
+        /* 鎖定垂直滑動，允許我們自己接管水平手勢 */
         .touch-pan-y { touch-action: pan-y; }
     </style>
 </head>
@@ -47,45 +49,52 @@
             </div>
         </header>
 
-        <main class="p-4 flex-grow space-y-4">
+        <main class="p-4 flex-grow space-y-4 overflow-x-hidden">
             
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3 relative overflow-hidden touch-pan-y"
-                 @touchstart="handleTouchStart"
-                 @touchmove="handleTouchMove"
-                 @touchend="handleTouchEnd"
-                 @mousedown="handleMouseDown"
-                 @mousemove="handleMouseMove"
-                 @mouseup="handleMouseUp"
-                 @mouseleave="handleMouseLeave">
-                 
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3 relative">
                 <div v-if="isLoadingHistory" class="absolute top-2 right-2 flex items-center justify-center bg-white/90 backdrop-blur rounded-full px-2 py-1 text-[9px] font-bold text-blue-500 shadow border border-blue-100 z-10">
                     <span class="animate-spin mr-1">🔄</span> 載入月份資料...
                 </div>
 
-                <div class="flex justify-between items-center mb-3 border-b border-gray-100 pb-2">
-                    <button @click="changeMonth(-1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors">〈</button>
+                <div class="flex justify-between items-center mb-3 border-b border-gray-100 pb-2 relative z-10 bg-white">
+                    <button @click="animateSwipe(-1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors w-10 text-center">〈</button>
                     <h2 class="text-base font-black text-slate-700 select-none">{{ currentYear }} / {{ currentMonth + 1 }}</h2>
-                    <button @click="changeMonth(1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors">〉</button>
+                    <button @click="animateSwipe(1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors w-10 text-center">〉</button>
                 </div>
                 
-                <div class="grid grid-cols-7 text-center text-[10px] font-black text-slate-400 uppercase mb-1 select-none">
+                <div class="grid grid-cols-7 text-center text-[10px] font-black text-slate-400 uppercase mb-1 select-none relative z-10 bg-white">
                     <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
                 </div>
                 
-                <div class="grid grid-cols-7 border-t border-l border-slate-200 bg-white select-none">
-                    <div v-for="(day, index) in calendarDays" :key="index" class="min-h-[75px] border-b border-r border-slate-200 py-1 flex flex-col overflow-hidden" :class="{'bg-blue-50/40': isToday(day.dateStr), 'bg-slate-50/50': day.isWeekend && day.day}">
-                        <span v-if="day.day" class="text-xs font-bold mb-1 px-1.5 text-left pointer-events-none" :class="day.isWeekend ? 'text-red-400' : 'text-slate-400'">{{ day.day }}</span>
+                <div class="relative w-full h-[580px] touch-pan-y" 
+                     ref="calendarGrid"
+                     @touchstart="handleTouchStart"
+                     @touchmove="handleTouchMove"
+                     @touchend="handleTouchEnd"
+                     @mousedown="handleMouseDown"
+                     @mousemove="handleMouseMove"
+                     @mouseup="handleMouseUp"
+                     @mouseleave="handleMouseLeave">
+                     
+                    <div :style="{ transform: `translateX(${swipeOffset}px)`, transition: calendarTransition }" class="w-full h-full absolute top-0 left-0 cursor-grab active:cursor-grabbing">
                         
-                        <div class="flex-grow flex flex-col relative w-full pt-[2px]">
-                            <div v-for="n in (day.maxTrack >= 0 ? day.maxTrack + 1 : 0)" :key="'track-'+(n-1)" class="calendar-track w-full">
-                                <div v-if="day.tracks[n-1]" 
-                                     @click.stop="scrollToTask(day.tracks[n-1].task)"
-                                     class="text-[9px] truncate text-white font-bold cursor-pointer hover:brightness-110 shadow-sm absolute top-0 bottom-[2px] flex items-center px-1.5 z-10" 
-                                     :class="day.tracks[n-1]._calendarClasses">
-                                     <span v-if="day.tracks[n-1].isTextVisible" class="pointer-events-none">{{ day.tracks[n-1].task.contractor || '未指定' }}</span>
+                        <div class="grid grid-cols-7 grid-rows-6 border-t border-l border-slate-200 bg-white h-full select-none">
+                            <div v-for="(day, index) in calendarDays" :key="index" class="border-b border-r border-slate-200 py-1 flex flex-col overflow-hidden" :class="{'bg-blue-50/40': isToday(day.dateStr), 'bg-slate-50/50': day.isWeekend && day.day}">
+                                <span v-if="day.day" class="text-xs font-bold mb-1 px-1.5 text-left pointer-events-none" :class="day.isWeekend ? 'text-red-400' : 'text-slate-400'">{{ day.day }}</span>
+                                
+                                <div class="flex-grow flex flex-col relative w-full pt-[2px]">
+                                    <div v-for="n in (day.maxTrack >= 0 ? day.maxTrack + 1 : 0)" :key="'track-'+(n-1)" class="calendar-track w-full">
+                                        <div v-if="day.tracks[n-1]" 
+                                             @click.stop="scrollToTask(day.tracks[n-1].task)"
+                                             class="text-[9px] truncate text-white font-bold hover:brightness-110 shadow-sm absolute top-0 bottom-[2px] flex items-center px-1.5 z-10" 
+                                             :class="day.tracks[n-1]._calendarClasses">
+                                             <span v-if="day.tracks[n-1].isTextVisible" class="pointer-events-none">{{ day.tracks[n-1].task.contractor || '未指定' }}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+
                     </div>
                 </div>
             </div>
@@ -93,7 +102,7 @@
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-6">
                 <div class="bg-slate-50 p-3 flex justify-between items-center cursor-pointer border-b border-gray-100 hover:bg-slate-100 transition-colors" @click="showFilters = !showFilters">
                     <div class="font-bold text-slate-700 text-xs flex items-center">
-                        <span class="mr-2 text-sm">🔍</span> 搜尋與篩選 (共 {{ filteredTasks.length }} 筆)
+                        <span class="mr-2 text-sm">🔍</span> 搜尋與篩選
                         <span v-if="hasActiveFilters" class="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-black">已套用</span>
                     </div>
                     <span class="text-slate-400 text-xs font-bold">{{ showFilters ? '▲ 收起' : '▼ 展開' }}</span>
@@ -123,7 +132,7 @@
                         
                         <div class="col-span-2 bg-gray-50 border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 p-2 flex flex-col gap-1.5">
                             <div class="text-gray-500 font-bold text-xs flex justify-between items-center">
-                                <span>📅 篩選期間 (只要有涵蓋即顯示)</span>
+                                <span>📅 篩選期間</span>
                                 <button v-if="filters.startDate || filters.endDate" @click="filters.startDate=''; filters.endDate=''" class="text-gray-400 hover:text-red-500 font-black px-1" title="清除日期">✖ 清除</button>
                             </div>
                             <div class="flex items-center gap-2">
@@ -137,7 +146,7 @@
                     <div class="flex gap-2 pt-2 border-t border-gray-100">
                         <button @click="resetFilters" class="w-1/3 bg-gray-100 text-gray-600 py-2 rounded-lg font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all">清除</button>
                         <button @click="exportCSV" class="w-2/3 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
-                            <span class="mr-1">📊</span> 匯出結果 (CSV)
+                            匯出結果 (CSV)
                         </button>
                     </div>
                 </div>
@@ -547,10 +556,12 @@
                         mainCategory: '', remark: '', subItems: [], permits: []
                     },
                     
-                    // 新增：拖曳與觸控狀態
+                    // 滑動狀態管理
                     touchStartX: 0,
-                    touchEndX: 0,
-                    isDragging: false,
+                    swipeOffset: 0,
+                    isSwiping: false,
+                    isSwipingMotion: false,
+                    calendarTransition: 'none',
                 }
             },
             computed: {
@@ -750,6 +761,12 @@
                         }
                         days.push(dayData);
                     }
+                    
+                    // 強制補滿 42 格 (6週) 以維持高度絕對固定
+                    while (days.length < 42) {
+                        days.push({ day: null, dateStr: null, tracks: {}, maxTrack: -1 });
+                    }
+                    
                     return days;
                 }
             },
@@ -788,54 +805,73 @@
                 this.loadMonthData(this.currentYear, this.currentMonth);
             },
             methods: {
-                // --- 新增：手勢與滑鼠事件處理 ---
+                // 手勢控制邏輯
                 handleTouchStart(e) {
-                    this.touchStartX = e.changedTouches[0].screenX;
+                    this.touchStartX = e.touches ? e.touches[0].clientX : e.clientX;
+                    this.isSwiping = true;
+                    this.calendarTransition = 'none';
                 },
                 handleTouchMove(e) {
-                    this.touchEndX = e.changedTouches[0].screenX;
+                    if (!this.isSwiping) return;
+                    const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+                    this.swipeOffset = currentX - this.touchStartX;
+                    
+                    if (Math.abs(this.swipeOffset) > 10) {
+                        this.isSwipingMotion = true;
+                    }
                 },
                 handleTouchEnd() {
-                    this.processSwipe();
-                },
-                handleMouseDown(e) {
-                    this.isDragging = true;
-                    this.touchStartX = e.clientX;
-                },
-                handleMouseMove(e) {
-                    if (!this.isDragging) return;
-                    this.touchEndX = e.clientX;
-                },
-                handleMouseUp() {
-                    if (!this.isDragging) return;
-                    this.isDragging = false;
-                    this.processSwipe();
-                },
-                handleMouseLeave() {
-                    if (this.isDragging) {
-                        this.isDragging = false;
-                        this.processSwipe();
-                    }
-                },
-                processSwipe() {
-                    const deltaX = this.touchEndX - this.touchStartX;
-                    const threshold = 50; // 觸發門檻 50px
+                    if (!this.isSwiping) return;
+                    this.isSwiping = false;
+                    const threshold = 60;
                     
-                    if (Math.abs(deltaX) > threshold && this.touchEndX !== 0) {
-                        if (deltaX > 0) {
-                            // 向右滑 -> 上個月
-                            this.changeMonth(-1);
-                        } else {
-                            // 向左滑 -> 下個月
-                            this.changeMonth(1);
-                        }
+                    if (this.swipeOffset > threshold) {
+                        this.animateSwipe(-1, true); 
+                    } else if (this.swipeOffset < -threshold) {
+                        this.animateSwipe(1, true); 
+                    } else {
+                        // 彈回原位
+                        this.calendarTransition = 'transform 0.3s ease-out';
+                        this.swipeOffset = 0;
                     }
-                    // 重置
-                    this.touchStartX = 0;
-                    this.touchEndX = 0;
+                    
+                    setTimeout(() => { this.isSwipingMotion = false; }, 50);
                 },
-                // ---------------------------------
+                handleMouseDown(e) { this.handleTouchStart(e); },
+                handleMouseMove(e) { if(this.isSwiping) this.handleTouchMove(e); },
+                handleMouseUp(e) { this.handleTouchEnd(e); },
+                handleMouseLeave(e) { if(this.isSwiping) this.handleTouchEnd(e); },
 
+                animateSwipe(direction, fromGesture = false) {
+                    const width = this.$refs.calendarGrid ? this.$refs.calendarGrid.offsetWidth : window.innerWidth;
+                    
+                    if (!fromGesture) {
+                        // 點擊按鈕時，先讓它滑出去
+                        this.calendarTransition = 'transform 0.2s ease-out';
+                        this.swipeOffset = direction === 1 ? -width : width;
+                    } else {
+                        // 手勢已經滑到一半了，繼續滑出畫面
+                        this.calendarTransition = 'transform 0.2s ease-out';
+                        this.swipeOffset = direction === 1 ? -width : width;
+                    }
+                    
+                    setTimeout(() => {
+                        this.changeMonth(direction);
+                        
+                        // 瞬間把位置移到另一側準備滑入
+                        this.calendarTransition = 'none';
+                        this.swipeOffset = direction === 1 ? width : -width;
+                        
+                        requestAnimationFrame(() => {
+                            requestAnimationFrame(() => {
+                                this.calendarTransition = 'transform 0.2s ease-out';
+                                this.swipeOffset = 0;
+                            });
+                        });
+                    }, 200); 
+                },
+
+                // 核心功能
                 async handleLogin() {
                     this.isLoggingIn = true;
                     this.loginForm.error = '';
@@ -1022,6 +1058,8 @@
                     this.historyFetchCursor = { year: this.currentYear, month: this.currentMonth };
                 },
                 async scrollToTask(task) {
+                    if (this.isSwipingMotion) return; // 阻擋因為滑動而造成的誤觸
+                    
                     const targetTask = this.tasks.find(t => t.id === task.id);
                     if (targetTask) targetTask.expanded = true;
 
@@ -1042,6 +1080,7 @@
                 },
                 isPast(dateStr) { return dateStr < this.todayStr; },
                 changeMonth(offset) {
+                    // 若是透過左右按鈕點擊，原本就沒有傳 direction 以外的東西
                     this.currentMonth += offset;
                     if (this.currentMonth > 11) { this.currentMonth = 0; this.currentYear++; }
                     else if (this.currentMonth < 0) { this.currentMonth = 11; this.currentYear--; }
