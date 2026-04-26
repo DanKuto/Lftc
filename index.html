@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v41 (滑動切換版)</title>
+    <title>工程執行紀錄系統 v41.1 (介面微調版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -516,7 +516,7 @@
                 '備料': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
                 '物料運送': ['設備進場', '線材搬運', '廢料清運'],
                 '吊掛作業': ['吊車進場', '設備起降', '交維佈設', '人員淨空'], 
-                '測PIM': ['儀器校正', '負載測試', 'PIM量測', '報告產出']
+                '測PIM': ['查詢修正', '負載測試', 'PIM量測', '報告產出']
             }
         };
 
@@ -569,7 +569,7 @@
                     if (!this.newTask.mainCategory) return [];
                     if (this.newTask.mainCategory === '備料') return []; 
                     if (this.newTask.mainCategory === '物料運送') return ['車輛進廠放行單', '物料進出放行單']; 
-                    return ['一般施工單', '變電站申請', '離架申請', '天花板申請', '重物移入申請']; 
+                    return ['一般施工單', '變電站申請', '離架申請', '天花板申請']; 
                 },
                 hasActiveFilters() {
                     return this.filters.keyword !== '' || this.filters.startDate !== '' || this.filters.endDate !== '' || 
@@ -1058,7 +1058,7 @@
                     this.historyFetchCursor = { year: this.currentYear, month: this.currentMonth };
                 },
                 async scrollToTask(task) {
-                    if (this.isSwipingMotion) return; // 阻擋因為滑動而造成的誤觸
+                    if (this.isSwipingMotion) return; 
                     
                     const targetTask = this.tasks.find(t => t.id === task.id);
                     if (targetTask) targetTask.expanded = true;
@@ -1080,7 +1080,6 @@
                 },
                 isPast(dateStr) { return dateStr < this.todayStr; },
                 changeMonth(offset) {
-                    // 若是透過左右按鈕點擊，原本就沒有傳 direction 以外的東西
                     this.currentMonth += offset;
                     if (this.currentMonth > 11) { this.currentMonth = 0; this.currentYear++; }
                     else if (this.currentMonth < 0) { this.currentMonth = 11; this.currentYear--; }
