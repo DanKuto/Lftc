@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v46.4 (選單更新版)</title>
+    <title>工程執行紀錄系統 v46.5 (起始畫面修正版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -513,10 +513,8 @@
         const CONFIG = {
             buildings: ['FAB', 'CUP', 'OFFICE', 'SUP', '倉庫'],
             floors: ['LB1', 'LB2', 'L10', 'L20', 'L30', 'L40', 'L50', 'L60', 'L70', 'LR1', 'LR2'],
-            // --- 更新：加入「宏鎝」 ---
             contractors: ['領鋒', '和億', '宏鎝', '富懋', '明辰', '明凱', '寰霈', '金鐠鑼'],
             managers: ['N/A', '睿智', '昱凱', '國展', '旭承', '香雲', '玉琳', '怡霈', '承憲', '庭綺', '語宸'],
-            // --- 更新：修改選項與細項 ---
             categories: {
                 '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'],
                 '機櫃安裝': ['機櫃定位', '機櫃下線槽安裝', '設備安裝'],
@@ -573,7 +571,7 @@
                     isSwipingMotion: false, 
                     calendarTransition: 'none',
                     lastScrollPosition: 0,
-                    showHeader: false,
+                    showHeader: false, // 預設隱藏
                     mainTouchStartY: 0,
                     isAtTopWhenTouchStarted: false,
                 }
@@ -673,9 +671,6 @@
                         if (forcedTask && !visibleList.find(t => t.id === forcedTask.id)) visibleList.unshift(forcedTask);
                     }
                     return visibleList;
-                },
-                calendarDays() {
-                    return this.threeMonthsGrids[1]; 
                 }
             },
             mounted() {
@@ -710,12 +705,7 @@
 
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
                 
-                setTimeout(() => {
-                    if (window.scrollY === 0) {
-                        window.scrollTo({ top: 72, behavior: 'smooth' });
-                        this.showHeader = false;
-                    }
-                }, 100);
+                // 移除 setTimeout 自動捲動，讓畫面自然停在頂部
             },
             unmounted() {
                 window.removeEventListener('touchstart', this.handleGlobalTouchStart);
@@ -723,6 +713,20 @@
                 window.removeEventListener('wheel', this.handleGlobalWheel);
             },
             methods: {
+                handleScroll() {
+                    const currentScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+                    // 當在頁面最頂端時，維持隱藏；除非符合 touch/wheel 的下拉條件
+                    if (currentScrollPosition <= 5) {
+                        return;
+                    }
+                    if (Math.abs(currentScrollPosition - this.lastScrollPosition) < 20) return;
+                    
+                    // 往下捲動時隱藏 Header
+                    if (currentScrollPosition > this.lastScrollPosition) {
+                        this.showHeader = false;
+                    }
+                    this.lastScrollPosition = currentScrollPosition;
+                },
                 handleGlobalTouchStart(e) {
                     this.mainTouchStartY = e.touches ? e.touches[0].clientY : e.clientY;
                     this.isAtTopWhenTouchStarted = (window.scrollY <= 5);
@@ -731,6 +735,7 @@
                     let currentY = e.touches ? e.touches[0].clientY : e.clientY;
                     let deltaY = currentY - this.mainTouchStartY;
 
+                    // 只有在畫面的最頂端，且手勢是明顯向下拉時，才顯示 Header
                     if (this.isAtTopWhenTouchStarted && window.scrollY <= 5 && deltaY > 40) {
                         this.showHeader = true;
                     } else if (deltaY < -20) {
@@ -986,7 +991,6 @@
                     }
                 },
                 handleLogout() { signOut(auth); },
-                saveLocalState() { localStorage.setItem('site_tasks', JSON.stringify(this.tasks)); },
                 
                 exportExcel() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
@@ -1199,18 +1203,8 @@
                         this.loadSurroundingMonths(this.currentYear, this.currentMonth);
                     } catch (e) { alert("儲存異常，請檢查網路。"); }
                 },
-                // --- 更新：加入「宏鎝」的顏色設定 ---
                 getContractorColor(contractor) {
-                    const fixedMap = { 
-                        '和億': 'bg-blue-600', 
-                        '宏鎝': 'bg-orange-500', 
-                        '富懋': 'bg-[#10b981]', 
-                        '明辰': 'bg-rose-500', 
-                        '明凱': 'bg-amber-600', 
-                        '金鐠鑼': 'bg-purple-600', 
-                        '領鋒': 'bg-cyan-600', 
-                        '寰霈': 'bg-indigo-600' 
-                    };
+                    const fixedMap = { '和億': 'bg-blue-600', '富懋': 'bg-[#10b981]', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
                     if (!contractor) return 'bg-slate-400'; let name = contractor.trim(); if (fixedMap[name]) return fixedMap[name];
                     const fallbackColors = ['bg-pink-600', 'bg-teal-600', 'bg-fuchsia-600', 'bg-violet-600'];
                     let hash = 0; for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
@@ -1298,6 +1292,7 @@
                     nextTick(() => {
                         const element = document.getElementById('task-' + task.id);
                         if (element) {
+                            // 當有 Header 推擠時，減去安全間距 120px，確保滾動後卡片不會被頂部吃掉
                             const offsetPosition = element.getBoundingClientRect().top + window.pageYOffset - 120;
                             window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
                             element.classList.remove('highlight-flash'); void element.offsetWidth; element.classList.add('highlight-flash');
