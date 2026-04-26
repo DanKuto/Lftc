@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工程執行紀錄系統 v43 (無縫滑動版)</title>
+    <title>工程執行紀錄系統 v44 (極致效能優化版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -55,9 +55,9 @@
                     </div>
 
                     <div class="flex justify-between items-center mb-3 border-b border-gray-100 pb-2 relative z-20 bg-white">
-                        <button @click="animateSwipe(-1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors w-10 text-center active:scale-90">〈</button>
+                        <button @click="triggerSwipe(-1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors w-10 text-center active:scale-90">〈</button>
                         <h2 class="text-base font-black text-slate-700 select-none">{{ currentYear }} / {{ currentMonth + 1 }}</h2>
-                        <button @click="animateSwipe(1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors w-10 text-center active:scale-90">〉</button>
+                        <button @click="triggerSwipe(1)" class="p-2 font-bold text-slate-400 hover:text-blue-500 transition-colors w-10 text-center active:scale-90">〉</button>
                     </div>
                     
                     <div class="grid grid-cols-7 text-center text-[10px] font-black text-slate-400 uppercase mb-1 select-none relative z-20 bg-white shrink-0">
@@ -68,9 +68,9 @@
                          @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd"
                          @mousedown="handleMouseDown" @mousemove="handleMouseMove" @mouseup="handleMouseUp" @mouseleave="handleMouseLeave">
                          
-                        <div class="flex w-[300%] items-start" 
-                             :class="calendarTransition"
-                             :style="{ transform: `translateX(calc(-33.333333% + ${swipeOffset}px))` }">
+                        <div class="flex w-[300%] items-start will-change-transform" 
+                             ref="swipeContainer"
+                             style="transform: translateX(-33.333333%);">
                             
                             <div v-for="(grid, mIndex) in threeMonthsGrids" :key="mIndex" class="w-1/3 grid grid-cols-7 border-t border-l border-slate-200 bg-white select-none">
                                 <div v-for="(day, index) in grid" :key="index" class="min-h-[75px] border-b border-r border-slate-200 py-1 flex flex-col overflow-hidden" :class="{'bg-blue-50/40': isToday(day.dateStr), 'bg-slate-50/50': day.isWeekend && day.day}">
@@ -558,12 +558,7 @@
                         startDate: todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
                         contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
                         mainCategory: '', remark: '', subItems: [], permits: []
-                    },
-                    
-                    touchStartX: 0,
-                    swipeOffset: 0,
-                    isSwipingMotion: false, 
-                    calendarTransition: 'none',
+                    }
                 }
             },
             computed: {
@@ -665,13 +660,6 @@
                     this.user = user;
                 });
 
-                try {
-                    const savedTasks = localStorage.getItem('site_tasks');
-                    if (savedTasks && savedTasks !== "undefined") {
-                        this.tasks = JSON.parse(savedTasks);
-                    }
-                } catch(e) {}
-
                 const qRecent = query(tasksCollection, orderBy('createdAt', 'desc'), limit(150));
                 onSnapshot(qRecent, { includeMetadataChanges: true }, (snapshot) => {
                     snapshot.docChanges().forEach((change) => {
@@ -686,7 +674,6 @@
                             }
                         }
                     });
-                    this.saveLocalState();
                 }, (error) => { console.error("即時連線錯誤:", error); });
 
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
@@ -806,56 +793,75 @@
                         }
                         days.push(dayData);
                     }
+                    
+                    while (days.length < 42) {
+                        days.push({ day: null, dateStr: null, tracks: {}, maxTrack: -1 });
+                    }
+                    
                     return days;
                 },
 
+                // 手勢控制與 DOM 直接操作
                 handleTouchStart(e) {
                     this.touchStartX = e.touches ? e.touches[0].clientX : e.clientX;
-                    this.isSwipingMotion = true;
-                    this.calendarTransition = 'none';
-                },
-                handleTouchMove(e) {
-                    if (!this.isSwipingMotion) return;
-                    const currentX = e.touches ? e.touches[0].clientX : e.clientX;
-                    this.swipeOffset = currentX - this.touchStartX;
-                },
-                handleTouchEnd() {
-                    if (!this.isSwipingMotion) return;
-                    this.isSwipingMotion = false;
-                    const threshold = 50;
-                    
-                    if (this.swipeOffset > threshold) {
-                        this.animateSwipe(-1, true); 
-                    } else if (this.swipeOffset < -threshold) {
-                        this.animateSwipe(1, true); 
-                    } else {
-                        this.calendarTransition = 'transition-transform duration-300 ease-out';
-                        this.swipeOffset = 0;
+                    this._isSwiping = true;
+                    if (this.$refs.swipeContainer) {
+                        this.$refs.swipeContainer.style.transition = 'none';
                     }
                 },
+                handleTouchMove(e) {
+                    if (!this._isSwiping) return;
+                    const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+                    this._deltaX = currentX - this.touchStartX;
+                    
+                    if (this.$refs.swipeContainer) {
+                        this.$refs.swipeContainer.style.transform = `translateX(calc(-33.333333% + ${this._deltaX}px))`;
+                    }
+                },
+                handleTouchEnd(e) {
+                    if (!this._isSwiping) return;
+                    this._isSwiping = false;
+                    const threshold = 50;
+                    
+                    if (this._deltaX > threshold) {
+                        this.executeSwipeAnimation(-1); 
+                    } else if (this._deltaX < -threshold) {
+                        this.executeSwipeAnimation(1); 
+                    } else {
+                        if (this.$refs.swipeContainer) {
+                            this.$refs.swipeContainer.style.transition = 'transform 0.3s ease-out';
+                            this.$refs.swipeContainer.style.transform = 'translateX(-33.333333%)';
+                        }
+                    }
+                    this._deltaX = 0;
+                },
                 handleMouseDown(e) { this.handleTouchStart(e); },
-                handleMouseMove(e) { if(this.isSwipingMotion) this.handleTouchMove(e); },
+                handleMouseMove(e) { if(this._isSwiping) this.handleTouchMove(e); },
                 handleMouseUp(e) { this.handleTouchEnd(e); },
-                handleMouseLeave(e) { if(this.isSwipingMotion) this.handleTouchEnd(e); },
+                handleMouseLeave(e) { if(this._isSwiping) this.handleTouchEnd(e); },
 
-                animateSwipe(direction, fromGesture = false) {
-                    const width = this.$refs.calendarViewport ? this.$refs.calendarViewport.offsetWidth : window.innerWidth;
-                    this.isSwipingMotion = false; 
-                    this.calendarTransition = 'transition-transform duration-300 ease-out';
-                    this.swipeOffset = direction === 1 ? -width : width;
+                executeSwipeAnimation(direction) {
+                    if (!this.$refs.swipeContainer) return;
+                    const container = this.$refs.swipeContainer;
+                    
+                    const targetPercent = direction === 1 ? '-66.666667%' : '0%';
+                    
+                    container.style.transition = 'transform 0.3s ease-out';
+                    container.style.transform = `translateX(${targetPercent})`;
                     
                     setTimeout(() => {
                         this.changeMonth(direction);
-                        this.calendarTransition = 'none';
-                        this.swipeOffset = direction === 1 ? width : -width;
                         
-                        requestAnimationFrame(() => {
-                            requestAnimationFrame(() => {
-                                this.calendarTransition = 'transition-transform duration-300 ease-out';
-                                this.swipeOffset = 0;
-                            });
-                        });
+                        container.style.transition = 'none';
+                        container.style.transform = 'translateX(-33.333333%)';
+                        
                     }, 300); 
+                },
+
+                triggerSwipe(direction) {
+                    if (this.$refs.swipeContainer) {
+                        this.executeSwipeAnimation(direction);
+                    }
                 },
 
                 async loadSurroundingMonths(year, month) {
@@ -893,7 +899,6 @@
                         });
                         this.tasks.push(...newTasks);
                         this.loadedMonths.push(monthKey);
-                        this.saveLocalState();
                     } catch(e) {
                         console.error("載入月份資料失敗:", e);
                     } finally {
@@ -916,15 +921,11 @@
                     }
                 },
                 handleLogout() { signOut(auth); },
-                saveLocalState() { localStorage.setItem('site_tasks', JSON.stringify(this.tasks)); },
+                
                 exportCSV() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
                     let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
-                    if (this.filters.status === 'all' && exportList.length > 150) {
-                        alert('「所有狀態」下匯出數量限制為 150 筆，系統已自動為您截取最早建立的 150 筆資料。');
-                        exportList = exportList.slice(0, 150);
-                    }
-
+                    
                     let csvContent = '\uFEFF工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,備註,應辦申請單,停工原因\n';
                     exportList.forEach(t => {
                         let status = t.isSuspended ? '已停工' : ((t.isCompleted || this.isPast(t.endDate)) ? '已完工' : '進行中');
@@ -1058,8 +1059,8 @@
                     this.forcedVisibleTaskId = null; 
                     this.historyFetchCursor = { year: this.currentYear, month: this.currentMonth };
                 },
-                async scrollToTask(task) {
-                    if (this.isSwipingMotion) return; 
+                scrollToTask(task) {
+                    if (this._isSwiping) return; 
                     
                     const targetTask = this.tasks.find(t => t.id === task.id);
                     if (targetTask) targetTask.expanded = true;
