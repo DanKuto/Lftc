@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v46 (企業效能版)</title>
+    <title>工程執行紀錄系統 v46.1 (Excel雙工作表版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -150,8 +151,8 @@
                         
                         <div class="flex gap-2 pt-2 border-t border-gray-100">
                             <button @click="resetFilters" class="w-1/3 bg-gray-100 text-gray-600 py-2 rounded-lg font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all">清除</button>
-                            <button @click="exportCSV" class="w-2/3 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
-                                匯出結果 (CSV)
+                            <button @click="exportExcel" class="w-2/3 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
+                                匯出結果 (Excel)
                             </button>
                         </div>
                     </div>
@@ -505,7 +506,6 @@
         const db = getFirestore(app);
         const auth = getAuth(app); 
         
-        // 啟用離線持久化，這非常關鍵
         enableIndexedDbPersistence(db).catch((err) => { console.warn("無法啟用離線快取:", err); });
 
         const tasksCollection = collection(db, 'tasks');
@@ -537,14 +537,8 @@
 
                 return {
                     config: CONFIG,
-                    
-                    // 【核心重構】：將單一陣列改為以 'YYYY-MM' 為 Key 的 Hash Map
-                    // 這解決了上千筆資料過濾時的 O(N) 效能瓶頸
                     tasksByMonth: {}, 
-                    
-                    // 用於監聽最近的異動 (維持即時更新的特性)
                     recentTasks: {}, 
-                    
                     loadedMonths: [],
                     isLoadingHistory: false,
                     isOnline: navigator.onLine,
@@ -581,14 +575,11 @@
                 }
             },
             computed: {
-                // 將 HashMap 攤平成為過濾器可以使用的陣列
                 allTasksFlat() {
                     let all = {};
-                    // 合併所有月份撈取的資料
                     Object.values(this.tasksByMonth).forEach(monthArray => {
                         monthArray.forEach(t => all[t.id] = t);
                     });
-                    // 合併即時監聽的資料 (覆蓋舊資料以確保最新狀態)
                     Object.values(this.recentTasks).forEach(t => all[t.id] = t);
                     return Object.values(all);
                 },
@@ -691,7 +682,6 @@
                     this.user = user;
                 });
 
-                // 即時監聽最近 150 筆，獨立存放在 recentTasks
                 const qRecent = query(tasksCollection, orderBy('createdAt', 'desc'), limit(150));
                 onSnapshot(qRecent, { includeMetadataChanges: true }, (snapshot) => {
                     snapshot.docChanges().forEach((change) => {
@@ -699,14 +689,10 @@
                             const docData = change.doc.data();
                             const id = change.doc.id;
                             
-                            // 保留原本的 expanded 狀態 (如果有的話)
                             const existingTask = this.recentTasks[id] || this.allTasksFlat.find(t => t.id === id);
                             const expanded = existingTask ? existingTask.expanded : false;
                             
-                            // 更新 recentTasks
                             this.recentTasks[id] = { id, ...docData, expanded };
-                            
-                            // 為了觸發 Vue 深度響應
                             this.recentTasks = { ...this.recentTasks };
                         } else if (change.type === "removed") {
                             delete this.recentTasks[change.doc.id];
@@ -752,13 +738,12 @@
                     }
                 },
 
-                // 核心算圖函數：現在從 allTasksFlat 抓取，效能更高
                 generateMonthGrid(targetYear, targetMonth) {
                     const firstDay = new Date(targetYear, targetMonth, 1).getDay();
                     const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
                     
                     let monthTasks = [];
-                    // O(N) 過濾當月資料，N 現在是被控制在合理範圍的 allTasksFlat
+                    // 改用 Hash Map 後，這裏遍歷的總數會大幅減少
                     this.filteredTasks.forEach(task => {
                         if (!task.startDate || !task.endDate) return;
                         let tStart = new Date(task.startDate);
@@ -964,15 +949,13 @@
                         
                         let monthData = [];
                         snapshot.forEach(doc => {
-                            // 確保不會覆蓋到 recentTasks 裡面已經有的更新鮮的資料
                             if (!this.recentTasks[doc.id]) {
                                 monthData.push({ id: doc.id, ...doc.data(), expanded: false });
                             }
                         });
                         
-                        // 存入 Hash Map 抽屜
                         this.tasksByMonth[monthKey] = monthData;
-                        this.tasksByMonth = { ...this.tasksByMonth }; // 觸發 Vue 響應
+                        this.tasksByMonth = { ...this.tasksByMonth }; 
                         
                         this.loadedMonths.push(monthKey);
                     } catch(e) {
@@ -998,11 +981,14 @@
                 },
                 handleLogout() { signOut(auth); },
                 
-                exportCSV() {
+                exportExcel() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
                     let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
                     
-                    let csvContent = '\uFEFF工項狀態,開始日期,結束日期,工作天,包商/班組,管理職,廠區,大樓,樓層,主要工項,施作細項,備註,應辦申請單,停工原因\n';
+                    let sheet1Data = [
+                        ['工項狀態', '開始日期', '結束日期', '工作天', '包商/班組', '管理職', '廠區', '大樓', '樓層', '主要工項', '施作細項', '備註', '應辦申請單', '停工原因']
+                    ];
+                    
                     exportList.forEach(t => {
                         let status = t.isSuspended ? '已停工' : ((t.isCompleted || this.isPast(t.endDate)) ? '已完工' : '進行中');
                         let locs = this.getLocations(t);
@@ -1012,13 +998,89 @@
                         let remark = (t.remark || '').replace(/\n/g, ' ');
                         let permits = (t.permits || []).join('、');
                         let suspendReason = (t.suspendReason || '').replace(/\n/g, ' ');
-                        let row = `"${status}","${t.startDate||''}","${t.endDate||''}","${t.days||1}","${t.contractor||''}","${(t.managers||[]).join('、')}","${phases}","${buildings}","${floors}","${t.mainCategory||''}","${(t.subItems||[]).join('、')}","${remark}","${permits}","${suspendReason}"`;
-                        csvContent += row + '\n';
+                        
+                        sheet1Data.push([
+                            status, t.startDate||'', t.endDate||'', t.days||1, t.contractor||'', 
+                            (t.managers||[]).join('、'), phases, buildings, floors, 
+                            t.mainCategory||'', (t.subItems||[]).join('、'), remark, permits, suspendReason
+                        ]);
                     });
-                    const link = document.createElement("a");
-                    link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })));
-                    link.setAttribute("download", `工程紀錄匯出_${this.todayStr}.csv`);
-                    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+
+                    let sheet2Data = [
+                        ['日期', '星期', '包商/班組', '主要工項', '施作細項', '備註', '應辦申請單', '廠區', '大樓', '樓層']
+                    ];
+                    
+                    let dailyMap = {};
+                    exportList.forEach(task => {
+                        if (!task.startDate || !task.endDate) return;
+                        let tStart = new Date(task.startDate);
+                        let tEnd = new Date(task.endDate);
+                        let curDate = new Date(tStart);
+                        
+                        while (curDate <= tEnd) {
+                            let dayOfWeek = curDate.getDay();
+                            let isWorkDay = true;
+                            if (dayOfWeek === 6 && !task.includeSaturday) isWorkDay = false;
+                            if (dayOfWeek === 0 && !task.includeSunday) isWorkDay = false;
+                            
+                            if (isWorkDay) {
+                                let y = curDate.getFullYear();
+                                let m = String(curDate.getMonth() + 1).padStart(2, '0');
+                                let d = String(curDate.getDate()).padStart(2, '0');
+                                let dateStr = `${y}-${m}-${d}`;
+                                
+                                if (!dailyMap[dateStr]) dailyMap[dateStr] = [];
+                                dailyMap[dateStr].push(task);
+                            }
+                            curDate.setDate(curDate.getDate() + 1);
+                        }
+                    });
+                    
+                    let allDates = Object.keys(dailyMap).sort();
+                    const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+                    
+                    allDates.forEach(dateStr => {
+                        let tasksOnDay = dailyMap[dateStr];
+                        tasksOnDay.sort((a, b) => {
+                            let cA = a.contractor || '';
+                            let cB = b.contractor || '';
+                            return cA.localeCompare(cB);
+                        });
+                        
+                        let dObj = new Date(dateStr);
+                        let dateDisplay = `${dObj.getMonth() + 1}月${dObj.getDate()}日`;
+                        let dayDisplay = dayNames[dObj.getDay()];
+                        
+                        tasksOnDay.forEach((t, idx) => {
+                            let locs = this.getLocations(t);
+                            let phases = locs.map(l => l.phase).join('、');
+                            let buildings = locs.map(l => l.building).join('、');
+                            let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、');
+                            let remark = (t.remark || '').replace(/\n/g, ' ');
+                            
+                            sheet2Data.push([
+                                idx === 0 ? dateDisplay : '',
+                                idx === 0 ? dayDisplay : '',
+                                t.contractor || '',
+                                t.mainCategory || '',
+                                (t.subItems || []).join('、'),
+                                remark,
+                                (t.permits || []).join('、'),
+                                phases,
+                                buildings,
+                                floors
+                            ]);
+                        });
+                    });
+
+                    const wb = XLSX.utils.book_new();
+                    const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+                    const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+                    
+                    XLSX.utils.book_append_sheet(wb, ws1, "原始清單");
+                    XLSX.utils.book_append_sheet(wb, ws2, "每日排程");
+                    
+                    XLSX.writeFile(wb, `工程紀錄匯出_${this.todayStr}.xlsx`);
                 },
                 resetFilters() { this.filters = { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' }; },
                 getLocations(task) { return task.locations && task.locations.length > 0 ? task.locations : [{ phase: 'P2', building: task.building, floor: task.floor }]; },
@@ -1140,7 +1202,6 @@
                     const targetTask = this.allTasksFlat.find(t => t.id === task.id);
                     if (targetTask) {
                         targetTask.expanded = true;
-                        // 因為現在是 Hash Map，我們需要更新到對應的抽屜中，或是如果他是 recent 則更新 recent
                         let [y, m] = task.startDate.split('-');
                         let monthKey = `${y}-${m}`;
                         if (this.recentTasks[task.id]) {
