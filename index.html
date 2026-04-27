@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 (修正登入條與大日期版)</title>
+    <title>工程執行紀錄系統 v47.1 (清單與顏色修復版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -55,8 +55,7 @@
                     </div>
                     
                     <div class="relative w-full overflow-hidden touch-pan-y" ref="calendarViewport"
-                         @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd"
-                         @mousedown="handleMouseDown" @mousemove="handleMouseMove" @mouseup="handleMouseUp" @mouseleave="handleMouseLeave">
+                         @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd">
                          
                         <div class="flex w-[300%] items-start will-change-transform" ref="swipeContainer" style="transform: translateX(-33.333333%);">
                             <div v-for="(gridInfo, mIndex) in threeMonthsGrids" :key="mIndex" class="w-1/3 grid grid-cols-7 border-t border-l border-slate-200 bg-white select-none">
@@ -121,9 +120,9 @@
                 <div>
                     <div class="flex justify-between items-end mb-2">
                         <span class="text-xs font-bold text-slate-400">進行中工項</span>
-                        <div class="flex bg-gray-200 rounded-lg p-0.5">
-                            <button @click="sortBy = 'contractor'" class="text-[10px] px-3 py-1 rounded-md font-bold transition-all" :class="sortBy === 'contractor' ? 'bg-white text-blue-600' : 'text-gray-500'">按包商</button>
-                            <button @click="sortBy = 'time'" class="text-[10px] px-3 py-1 rounded-md font-bold transition-all" :class="sortBy === 'time' ? 'bg-white text-blue-600' : 'text-gray-500'">按時間</button>
+                        <div class="flex bg-gray-200 rounded-lg p-0.5 shadow-inner">
+                            <button @click="sortBy = 'contractor'" class="text-[10px] px-3 py-1 rounded-md font-bold transition-all duration-200 ease-in-out" :class="sortBy === 'contractor' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">按包商</button>
+                            <button @click="sortBy = 'time'" class="text-[10px] px-3 py-1 rounded-md font-bold transition-all duration-200 ease-in-out" :class="sortBy === 'time' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">按時間</button>
                         </div>
                     </div>
                     <hr class="border-slate-200 mb-4">
@@ -135,45 +134,58 @@
                         </div>
 
                         <template v-for="(task, index) in visibleActiveTasks" :key="'active-'+task.id">
-                            <div :id="'task-' + task.id" class="border border-slate-200 rounded-xl shadow-sm bg-white overflow-hidden mb-4">
+                            <div :id="'task-' + task.id" class="border border-slate-200 rounded-xl shadow-sm bg-white overflow-hidden">
+                                
                                 <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
-                                    
-                                    <div class="flex justify-between items-start mb-2">
-                                        <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm tracking-widest" :class="getContractorColor(task.contractor)">
-                                            {{ task.contractor || '未指定' }}
-                                        </span>
-                                        <div class="text-[11px] text-slate-500 font-bold flex items-center">
-                                            <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
+                                    <div class="flex justify-between items-start">
+                                        <div class="flex flex-col items-start gap-2">
+                                            <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm tracking-widest" :class="getContractorColor(task.contractor)">
+                                                {{ task.contractor || '未指定' }}
+                                            </span>
+                                            <div class="flex flex-wrap gap-1 mt-1">
+                                                <span v-for="loc in getLocations(task)" class="flex items-center border border-slate-200 bg-slate-50 rounded px-2 py-0.5 text-[11px] font-bold">
+                                                    <span class="text-blue-600">{{ loc.phase }}</span>
+                                                    <span class="text-slate-300 mx-1.5">|</span>
+                                                    <span class="text-slate-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
+                                                </span>
+                                            </div>
+                                            <h3 class="text-xl font-black text-slate-800 tracking-wide mt-2">{{ task.mainCategory }}</h3>
+                                        </div>
+                                        
+                                        <div class="flex flex-col items-end gap-2 pt-0.5">
+                                            <div class="flex items-center gap-1 border border-blue-200 bg-blue-50 text-blue-700 px-2 py-1 rounded text-[11px] font-bold">
+                                                <span class="text-[12px]">⏱</span> {{ task.days }} 工作天
+                                            </div>
+                                            <div class="text-[11px] text-slate-500 font-medium tracking-wider mt-1">
+                                                {{ task.startDate }} 至 {{ task.endDate }}
+                                            </div>
+                                            <div class="text-[11px] text-slate-500 font-bold flex items-center">
+                                                <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
+                                            </div>
                                         </div>
                                     </div>
-                                    
-                                    <h3 class="text-xl font-black text-slate-800 tracking-wide mt-1">{{ task.mainCategory }}</h3>
-                                    
-                                    <div class="text-lg text-slate-700 font-black tracking-widest mt-2.5 bg-slate-100 inline-block px-3 py-1 rounded-lg">
-                                        {{ formatTaskDate(task.startDate) }} ～ {{ formatTaskDate(task.endDate) }}
-                                    </div>
-                                    
-                                    <div class="flex flex-wrap gap-1 mt-3">
-                                        <span v-for="(loc, lIdx) in getLocations(task)" :key="lIdx" class="flex items-center border border-slate-200 bg-slate-50 rounded px-2 py-0.5 text-[11px] font-bold">
-                                            <span class="text-blue-600">{{ loc.phase }}</span>
-                                            <span class="text-slate-300 mx-1.5">|</span>
-                                            <span class="text-slate-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
-                                        </span>
-                                    </div>
                                 </div>
-                                <div v-if="task.expanded" class="px-4 pb-4 border-t border-slate-50 pt-3">
+                                
+                                <div v-if="task.expanded" class="px-4 pb-4">
                                     <div class="flex flex-wrap gap-2 mb-3" v-if="task.subItems && task.subItems.length">
-                                        <span v-for="(sub, sIdx) in task.subItems" :key="sIdx" class="bg-white border border-slate-200 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
+                                        <span v-for="sub in task.subItems" class="bg-white border border-slate-200 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
                                     </div>
+                                    
+                                    <hr class="border-slate-200 my-4">
+                                    
                                     <div class="text-[12px] text-slate-800 leading-relaxed mb-4">
                                         <span class="font-bold">備註事項:</span>
                                         <div class="pl-6 mt-1 whitespace-pre-wrap">{{ task.remark || '無' }}</div>
                                     </div>
+                                    
+                                    <hr class="border-slate-200 my-4">
+                                    
                                     <div class="text-[12px] text-slate-800 font-bold mb-5 flex items-start">
                                         <span class="mr-2 shrink-0">應辦:</span>
                                         <span class="font-normal">{{ task.permits && task.permits.length ? task.permits.join(', ') : '無' }}</span>
                                     </div>
-                                    <div v-if="user" class="flex justify-between items-center mt-2">
+
+                                    <div v-if="user" class="flex justify-between items-center">
                                         <div class="flex gap-2">
                                             <button @click.stop="toggleCompleteStatus(task)" class="bg-[#14b8a6] hover:bg-teal-500 text-white text-[12px] font-bold px-6 py-2 rounded transition-colors shadow-sm">已完工</button>
                                             <button @click.stop="toggleSuspendStatus(task)" class="bg-[#ef4444] hover:bg-red-500 text-white text-[12px] font-bold px-6 py-2 rounded transition-colors shadow-sm">停工</button>
@@ -185,7 +197,15 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <div v-if="sortBy === 'time' && index < visibleActiveTasks.length - 1 && task.startDate !== visibleActiveTasks[index+1].startDate" 
+                                 class="my-5 border-b border-slate-200 relative">
+                                <span class="absolute right-0 -top-2.5 bg-gray-50 text-slate-400 font-bold text-[10px] px-2 py-0.5">
+                                    {{ visibleActiveTasks[index+1].startDate }}
+                                </span>
+                            </div>
                         </template>
+
                         <button v-if="activeTasks.length > visibleLimit" @click="loadMore" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-blue-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
                             載入更多進行中工項 (還有 {{ activeTasks.length - visibleLimit }} 筆) ▼
                         </button>
@@ -204,43 +224,53 @@
                             這段期間沒有歷史紀錄。
                         </div>
                         
-                        <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden bg-slate-50 border-slate-200 opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0 mb-4">
+                        <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden bg-slate-50 border-slate-200 opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0">
                             <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
-                                
-                                <div class="flex justify-between items-start mb-2">
-                                    <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm" :class="getContractorColor(task.contractor)">
-                                        {{ task.contractor || '未指定' }} <span v-if="task.isSuspended" class="font-normal">(已停工)</span><span v-else class="font-normal">(已完工)</span>
-                                    </span>
-                                    <div class="text-[11px] text-slate-500 font-bold flex items-center">
-                                        <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
+                                <div class="flex justify-between items-start">
+                                    <div class="flex flex-col items-start gap-2">
+                                        <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm" :class="getContractorColor(task.contractor)">
+                                            {{ task.contractor || '未指定' }} <span v-if="task.isSuspended" class="font-normal">(已停工)</span><span v-else class="font-normal">(已完工)</span>
+                                        </span>
+                                        <div class="flex flex-wrap gap-1 mt-1">
+                                            <span v-for="loc in getLocations(task)" class="flex items-center border border-slate-200 bg-slate-100 rounded px-2 py-0.5 text-[11px] font-bold">
+                                                <span class="text-blue-600">{{ loc.phase }}</span>
+                                                <span class="text-slate-400 mx-1.5">|</span>
+                                                <span class="text-slate-600">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
+                                            </span>
+                                        </div>
+                                        <h3 class="text-xl font-black text-slate-700 tracking-wide mt-2">{{ task.mainCategory }}</h3>
+                                    </div>
+                                    
+                                    <div class="flex flex-col items-end gap-2 pt-0.5">
+                                        <div class="flex items-center gap-1 border border-slate-300 bg-slate-200 text-slate-600 px-2 py-1 rounded text-[11px] font-bold">
+                                            <span class="text-[12px]">⏱</span> {{ task.days }} 工作天
+                                        </div>
+                                        <div class="text-[11px] text-slate-500 font-medium tracking-wider mt-1">
+                                            {{ task.startDate }} 至 {{ task.endDate }}
+                                        </div>
+                                        <div class="text-[11px] text-slate-500 font-bold flex items-center">
+                                            <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
+                                        </div>
                                     </div>
                                 </div>
-                                
-                                <h3 class="text-xl font-black text-slate-700 tracking-wide mt-1">{{ task.mainCategory }}</h3>
-                                
-                                <div class="text-lg text-slate-600 font-black tracking-widest mt-2.5 bg-slate-200 inline-block px-3 py-1 rounded-lg">
-                                    {{ formatTaskDate(task.startDate) }} ～ {{ formatTaskDate(task.endDate) }}
-                                </div>
-                                
-                                <div class="flex flex-wrap gap-1 mt-3">
-                                    <span v-for="(loc, lIdx) in getLocations(task)" :key="lIdx" class="flex items-center border border-slate-300 bg-slate-100 rounded px-2 py-0.5 text-[11px] font-bold">
-                                        <span class="text-blue-600">{{ loc.phase }}</span>
-                                        <span class="text-slate-400 mx-1.5">|</span>
-                                        <span class="text-slate-600">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
-                                    </span>
-                                </div>
                             </div>
-                            <div v-if="task.expanded" class="px-4 pb-4 border-t border-slate-200 pt-3">
+                            
+                            <div v-if="task.expanded" class="px-4 pb-4">
                                 <div v-if="task.isSuspended" class="mb-3 text-xs p-2.5 rounded bg-rose-100 text-rose-800 border border-rose-200 font-bold">
                                     🛑 停工原因：{{ task.suspendReason }}
                                 </div>
-                                <div class="flex flex-wrap gap-2 mb-3" v-if="task.subItems && task.subItems.length">
-                                    <span v-for="(sub, sIdx) in task.subItems" :key="sIdx" class="bg-slate-200 border border-slate-300 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
-                                </div>
-                                <div class="text-[12px] text-slate-700 leading-relaxed mb-4">
+                                
+                                <hr class="border-slate-200 my-3">
+                                <div class="text-[12px] text-slate-700 leading-relaxed">
                                     <span class="font-bold block mb-1">備註事項:</span>
                                     <div class="pl-6 mt-1 whitespace-pre-wrap">{{ task.remark || '無' }}</div>
                                 </div>
+                                
+                                <hr class="border-slate-200 my-4">
+                                <div class="flex flex-wrap gap-2 mb-4" v-if="task.subItems && task.subItems.length">
+                                    <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
+                                </div>
+
                                 <div v-if="user" class="flex justify-between items-center mt-2">
                                     <div class="flex gap-2">
                                         <button v-if="task.isSuspended && canToggleSuspend(task)" @click.stop="toggleSuspendStatus(task)" class="bg-white border border-slate-300 text-slate-600 text-[12px] font-bold px-4 py-2 rounded">↩️ 取消停工</button>
@@ -383,7 +413,7 @@
                     <div v-if="newTask.mainCategory" class="bg-amber-50/30 p-3 rounded-xl border border-amber-100">
                         <label class="block text-xs font-bold text-amber-700 mb-2">施作細項</label>
                         <div class="grid grid-cols-2 gap-2 mb-3">
-                            <label v-for="(sub, sIdx) in config.categories[newTask.mainCategory]" :key="sIdx" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
+                            <label v-for="sub in config.categories[newTask.mainCategory]" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
                                 <input type="checkbox" :value="sub" v-model="newTask.subItems" class="mr-2 w-4 h-4 rounded text-amber-600 focus:ring-amber-500"> {{ sub }}
                             </label>
                             <span v-if="config.categories[newTask.mainCategory].length === 0" class="text-xs text-amber-500">無細項</span>
@@ -392,7 +422,7 @@
                         <div v-if="availablePermits.length > 0" class="pt-3 border-t border-amber-200/50">
                             <label class="block text-xs font-bold text-amber-700 mb-2">應辦申請單 (請勾選)</label>
                             <div class="grid grid-cols-2 gap-2">
-                                <label v-for="(permit, pIdx) in availablePermits" :key="pIdx" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
+                                <label v-for="permit in availablePermits" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
                                     <input type="checkbox" :value="permit" v-model="newTask.permits" class="mr-2 w-4 h-4 rounded text-amber-600 focus:ring-amber-500"> {{ permit }}
                                 </label>
                             </div>
@@ -439,7 +469,6 @@
                     appliedFilters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
                     
                     touchStartX: 0, _isSwiping: false, _deltaX: 0, showHeader: false,
-                    lastScrollPosition: 0,
                 }
             },
             computed: {
@@ -533,31 +562,14 @@
                 });
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
 
-                window.addEventListener('scroll', this.handleScroll, { passive: true });
-            },
-            unmounted() {
-                window.removeEventListener('scroll', this.handleScroll);
+                const observer = new IntersectionObserver((entries) => {
+                    if (!entries[0].isIntersecting) {
+                        this.showHeader = false;
+                    }
+                }, { threshold: [0] });
+                observer.observe(document.querySelector('#top-sentinel'));
             },
             methods: {
-                handleScroll() {
-                    const currentScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
-                    if (currentScrollPosition > this.lastScrollPosition && currentScrollPosition > 50) {
-                        this.showHeader = false;
-                    } else if (currentScrollPosition < this.lastScrollPosition - 10 || currentScrollPosition <= 10) {
-                        this.showHeader = true;
-                    }
-                    this.lastScrollPosition = currentScrollPosition;
-                },
-                formatTaskDate(dateStr) {
-                    if (!dateStr) return '';
-                    const d = new Date(dateStr);
-                    if (isNaN(d.getTime())) return '';
-                    const days = ['日', '一', '二', '三', '四', '五', '六'];
-                    const month = String(d.getMonth() + 1).padStart(2, '0');
-                    const day = String(d.getDate()).padStart(2, '0');
-                    const weekDay = days[d.getDay()];
-                    return `${month}/${day}(${weekDay})`;
-                },
                 applySearch() {
                     this.appliedFilters = JSON.parse(JSON.stringify(this.filters));
                     this.showFilters = false;
@@ -682,6 +694,8 @@
                 },
                 getLocations(t) { return t.locations || [{phase:'P2', building:t.building, floor:t.floor}]; },
                 changeMonth(dir) { this.currentMonth += dir; if(this.currentMonth > 11){ this.currentMonth=0; this.currentYear++; } else if(this.currentMonth < 0){ this.currentMonth=11; this.currentYear--; } this.loadSurroundingMonths(this.currentYear, this.currentMonth); },
+                async loadSurroundingMonths(y, m) { let py=y, pm=m-1; if(pm<0){pm=11; py--;} let ny=y, nm=m+1; if(nm>11){nm=0; ny++;} await Promise.all([this.fetchMonthFromFirebase(py, pm), this.fetchMonthFromFirebase(y, m), this.fetchMonthFromFirebase(ny, nm)]); },
+                isToday(s) { return s === this.todayStr; },
                 async handleLogin() {
                     this.isLoggingIn = true; this.loginForm.error = '';
                     try { await signInWithEmailAndPassword(auth, this.loginForm.email, this.loginForm.password); this.showLoginModal = false; this.loginForm.email = ''; this.loginForm.password = ''; } 
