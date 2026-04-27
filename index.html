@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v49.3 (滑動省電優化版)</title>
+    <title>工程執行紀錄系統 v49.4 (省電優化版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -150,7 +150,7 @@
                         <div class="flex gap-2 pt-2 border-t border-gray-100">
                             <button @click="resetFilters" class="w-1/5 shrink-0 bg-gray-100 text-gray-600 py-2 rounded-lg font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all">重置</button>
                             <button @click="applyFilters" class="w-2/5 bg-blue-600 text-white py-2 rounded-lg font-bold text-xs hover:bg-blue-700 shadow-sm shadow-blue-200 flex items-center justify-center active:scale-95 transition-all">
-                                🔍 執行搜尋
+                                執行搜尋
                             </button>
                             <button @click="exportExcel" class="w-2/5 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
                                 匯出EXCEL
@@ -763,7 +763,6 @@
                     if (window.scrollY <= 5 && e.deltaY < 0) this.showHeader = true;
                     else if (e.deltaY > 0) this.showHeader = false;
                 },
-                // 日曆滑動核心邏輯
                 handleTouchStart(e) {
                     this.touchStartX = e.touches ? e.touches[0].clientX : e.clientX;
                     this.touchStartY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -778,7 +777,6 @@
                     const currentX = e.touches ? e.touches[0].clientX : e.clientX;
                     const currentY = e.touches ? e.touches[0].clientY : e.clientY;
 
-                    // 判斷是否為上下滑動，若是則放行網頁預設滾動，取消日曆切換
                     if (this._isVerticalScroll === null) {
                         if (Math.abs(currentY - this.touchStartY) > Math.abs(currentX - this.touchStartX)) {
                             this._isVerticalScroll = true;
@@ -793,7 +791,6 @@
 
                     this._deltaX = currentX - this.touchStartX;
 
-                    // 使用 requestAnimationFrame 讓滑動順暢且不耗電
                     if (!this._ticking) {
                         this._ticking = true;
                         requestAnimationFrame(() => {
@@ -807,7 +804,7 @@
                 handleTouchEnd() {
                     if (!this._isSwiping) return;
                     this._isSwiping = false;
-                    const threshold = 50; // 滑動超過 50px 則觸發換月
+                    const threshold = 50; 
 
                     if (this._deltaX > threshold) {
                         this.executeSwipeAnimation(-1);
@@ -1193,6 +1190,8 @@
                     this.loadSurroundingMonths(this.currentYear, this.currentMonth);
                 },
                 scrollToTask(task) {
+                    if (this._isSwiping) return; 
+                    
                     const targetTask = this.allTasksFlat.find(t => t.id === task.id);
                     if (targetTask) {
                         targetTask.expanded = true;
