@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v47.2 (日期格式與Header修正版)</title>
+    <title>工程執行紀錄系統 v47.2 (白屏修復與日期格式版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -17,12 +17,15 @@
         }
         [v-cloak] { display: none; }
         input::-webkit-calendar-picker-indicator { opacity: 1; cursor: pointer; }
+        
         .calendar-track { height: 20px; position: relative; }
         .touch-pan-y { touch-action: pan-y; }
         .header-transition { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     </style>
 </head>
 <body class="bg-gray-50 font-sans scroll-smooth overflow-x-hidden">
+    <div id="top-sentinel" style="position: absolute; top: 0; height: 1px; width: 1px;"></div>
+
     <div id="app" v-cloak class="max-w-md mx-auto bg-white min-h-screen shadow-lg flex flex-col relative overflow-x-hidden pb-20">
         
         <header class="bg-slate-800 text-white p-4 fixed top-0 left-0 right-0 w-full max-w-md mx-auto z-40 shadow-md flex justify-between items-center h-[72px] header-transition"
@@ -118,9 +121,9 @@
                 <div>
                     <div class="flex justify-between items-end mb-2">
                         <span class="text-xs font-bold text-slate-400">進行中工項</span>
-                        <div class="flex bg-gray-200 rounded-lg p-0.5">
-                            <button @click="sortBy = 'contractor'" class="text-[10px] px-3 py-1 rounded-md font-bold transition-all" :class="sortBy === 'contractor' ? 'bg-white text-blue-600' : 'text-gray-500'">按包商</button>
-                            <button @click="sortBy = 'time'" class="text-[10px] px-3 py-1 rounded-md font-bold transition-all" :class="sortBy === 'time' ? 'bg-white text-blue-600' : 'text-gray-500'">按時間</button>
+                        <div class="flex bg-gray-200 rounded-lg p-0.5 shadow-inner">
+                            <button @click="sortBy = 'contractor'" class="text-[10px] px-3 py-1 rounded-md font-bold transition-all duration-200 ease-in-out" :class="sortBy === 'contractor' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">按包商</button>
+                            <button @click="sortBy = 'time'" class="text-[10px] px-3 py-1 rounded-md font-bold transition-all duration-200 ease-in-out" :class="sortBy === 'time' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">按時間</button>
                         </div>
                     </div>
                     <hr class="border-slate-200 mb-4">
@@ -453,6 +456,7 @@
                         categories: { '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'], '機櫃安裝': ['機櫃定位', '機櫃下線槽安裝', '設備安裝'], '開盤送電': ['電線佈放', '接臨時電盤', '接正式電盤', '結線未送電'], '話機安裝': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'], '器材備料': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'], '物料運送': ['設備進場', '線材搬運', '廢料清運'], '吊掛作業': ['器具進場', '設備起降'], '測PIM': ['查詢修正', '負載測試', 'PIM量測', '報告產出'], '訊號改善': ['訊號查修', '設備維修'], '設備驗收': ['設備驗收', '疑點拍攝'] }
                     },
                     tasksByMonth: {}, recentTasks: {}, loadedMonths: [], isLoadingHistory: false,
+                    isOnline: navigator.onLine, // 修復：加入 isOnline 狀態
                     user: null, showLoginModal: false, showModal: false, editingTaskId: null,
                     currentYear: today.getFullYear(), currentMonth: today.getMonth(), todayStr: today.toISOString().split('T')[0],
                     sortBy: 'time', visibleLimit: 20, forcedVisibleTaskId: null, showFilters: false,
@@ -543,6 +547,9 @@
                 }
             },
             mounted() {
+                window.addEventListener('online', () => this.isOnline = true);
+                window.addEventListener('offline', () => this.isOnline = false);
+
                 onAuthStateChanged(auth, u => this.user = u);
                 const qRecent = query(tasksCollection, orderBy('createdAt', 'desc'), limit(150));
                 onSnapshot(qRecent, snap => {
@@ -555,7 +562,6 @@
                 });
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
                 
-                // 放寬條件，不再嚴格限制 scrollY === 0 才能顯示
                 window.addEventListener('scroll', this.handleScroll, { passive: true });
             },
             unmounted() {
@@ -564,18 +570,17 @@
             methods: {
                 handleScroll() {
                     const currentScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
-                    // 如果向下捲動，立刻隱藏
+                    // 向下滾動超過 50px 立刻隱藏
                     if (currentScrollPosition > this.lastScrollPosition && currentScrollPosition > 50) {
                         this.showHeader = false;
                     } 
-                    // 如果明顯向上捲動 (大於 10px)，或是回到了頂部，就顯示 Header
+                    // 放寬向上滾動判定，只要明顯往上捲，或是回到頂部，就顯示 Header
                     else if (currentScrollPosition < this.lastScrollPosition - 10 || currentScrollPosition <= 10) {
                         this.showHeader = true;
                     }
                     this.lastScrollPosition = currentScrollPosition;
                 },
                 
-                // 新增：格式化日期的功能 (MM/DD(週X))
                 formatTaskDate(dateStr) {
                     if (!dateStr) return '';
                     const d = new Date(dateStr);
