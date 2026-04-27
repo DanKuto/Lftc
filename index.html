@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v47.1 (清單與顏色修復版)</title>
+    <title>工程執行紀錄系統 v47.5 (完美手勢下拉版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -23,7 +23,6 @@
     </style>
 </head>
 <body class="bg-gray-50 font-sans scroll-smooth overflow-x-hidden">
-    <div id="top-sentinel" style="position: absolute; top: 0; height: 1px; width: 1px;"></div>
 
     <div id="app" v-cloak class="max-w-md mx-auto bg-white min-h-screen shadow-lg flex flex-col relative overflow-x-hidden pb-20">
         
@@ -134,41 +133,36 @@
                         </div>
 
                         <template v-for="(task, index) in visibleActiveTasks" :key="'active-'+task.id">
-                            <div :id="'task-' + task.id" class="border border-slate-200 rounded-xl shadow-sm bg-white overflow-hidden">
+                            <div :id="'task-' + task.id" class="border border-slate-200 rounded-xl shadow-sm bg-white overflow-hidden mb-4">
                                 
                                 <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
-                                    <div class="flex justify-between items-start">
-                                        <div class="flex flex-col items-start gap-2">
-                                            <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm tracking-widest" :class="getContractorColor(task.contractor)">
-                                                {{ task.contractor || '未指定' }}
-                                            </span>
-                                            <div class="flex flex-wrap gap-1 mt-1">
-                                                <span v-for="loc in getLocations(task)" class="flex items-center border border-slate-200 bg-slate-50 rounded px-2 py-0.5 text-[11px] font-bold">
-                                                    <span class="text-blue-600">{{ loc.phase }}</span>
-                                                    <span class="text-slate-300 mx-1.5">|</span>
-                                                    <span class="text-slate-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
-                                                </span>
-                                            </div>
-                                            <h3 class="text-xl font-black text-slate-800 tracking-wide mt-2">{{ task.mainCategory }}</h3>
+                                    <div class="flex justify-between items-start mb-2">
+                                        <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm tracking-widest" :class="getContractorColor(task.contractor)">
+                                            {{ task.contractor || '未指定' }}
+                                        </span>
+                                        <div class="text-[11px] text-slate-500 font-bold flex items-center">
+                                            <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
                                         </div>
-                                        
-                                        <div class="flex flex-col items-end gap-2 pt-0.5">
-                                            <div class="flex items-center gap-1 border border-blue-200 bg-blue-50 text-blue-700 px-2 py-1 rounded text-[11px] font-bold">
-                                                <span class="text-[12px]">⏱</span> {{ task.days }} 工作天
-                                            </div>
-                                            <div class="text-[11px] text-slate-500 font-medium tracking-wider mt-1">
-                                                {{ task.startDate }} 至 {{ task.endDate }}
-                                            </div>
-                                            <div class="text-[11px] text-slate-500 font-bold flex items-center">
-                                                <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
-                                            </div>
-                                        </div>
+                                    </div>
+                                    
+                                    <h3 class="text-xl font-black text-slate-800 tracking-wide mt-1">{{ task.mainCategory }}</h3>
+                                    
+                                    <div class="text-lg text-slate-700 font-black tracking-widest mt-2.5 bg-slate-100 inline-block px-3 py-1 rounded-lg">
+                                        {{ formatTaskDate(task.startDate) }} ～ {{ formatTaskDate(task.endDate) }}
+                                    </div>
+                                    
+                                    <div class="flex flex-wrap gap-1 mt-3">
+                                        <span v-for="(loc, lIdx) in getLocations(task)" :key="lIdx" class="flex items-center border border-slate-200 bg-slate-50 rounded px-2 py-0.5 text-[11px] font-bold">
+                                            <span class="text-blue-600">{{ loc.phase }}</span>
+                                            <span class="text-slate-300 mx-1.5">|</span>
+                                            <span class="text-slate-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
+                                        </span>
                                     </div>
                                 </div>
                                 
                                 <div v-if="task.expanded" class="px-4 pb-4">
                                     <div class="flex flex-wrap gap-2 mb-3" v-if="task.subItems && task.subItems.length">
-                                        <span v-for="sub in task.subItems" class="bg-white border border-slate-200 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
+                                        <span v-for="(sub, sIdx) in task.subItems" :key="sIdx" class="bg-white border border-slate-200 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
                                     </div>
                                     
                                     <hr class="border-slate-200 my-4">
@@ -197,13 +191,6 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <div v-if="sortBy === 'time' && index < visibleActiveTasks.length - 1 && task.startDate !== visibleActiveTasks[index+1].startDate" 
-                                 class="my-5 border-b border-slate-200 relative">
-                                <span class="absolute right-0 -top-2.5 bg-gray-50 text-slate-400 font-bold text-[10px] px-2 py-0.5">
-                                    {{ visibleActiveTasks[index+1].startDate }}
-                                </span>
-                            </div>
                         </template>
 
                         <button v-if="activeTasks.length > visibleLimit" @click="loadMore" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-blue-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
@@ -224,53 +211,45 @@
                             這段期間沒有歷史紀錄。
                         </div>
                         
-                        <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden bg-slate-50 border-slate-200 opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0">
+                        <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden bg-slate-50 border-slate-200 opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0 mb-4">
                             <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
-                                <div class="flex justify-between items-start">
-                                    <div class="flex flex-col items-start gap-2">
-                                        <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm" :class="getContractorColor(task.contractor)">
-                                            {{ task.contractor || '未指定' }} <span v-if="task.isSuspended" class="font-normal">(已停工)</span><span v-else class="font-normal">(已完工)</span>
-                                        </span>
-                                        <div class="flex flex-wrap gap-1 mt-1">
-                                            <span v-for="loc in getLocations(task)" class="flex items-center border border-slate-200 bg-slate-100 rounded px-2 py-0.5 text-[11px] font-bold">
-                                                <span class="text-blue-600">{{ loc.phase }}</span>
-                                                <span class="text-slate-400 mx-1.5">|</span>
-                                                <span class="text-slate-600">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
-                                            </span>
-                                        </div>
-                                        <h3 class="text-xl font-black text-slate-700 tracking-wide mt-2">{{ task.mainCategory }}</h3>
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm" :class="getContractorColor(task.contractor)">
+                                        {{ task.contractor || '未指定' }} <span v-if="task.isSuspended" class="font-normal">(已停工)</span><span v-else class="font-normal">(已完工)</span>
+                                    </span>
+                                    <div class="text-[11px] text-slate-500 font-bold flex items-center">
+                                        <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
                                     </div>
-                                    
-                                    <div class="flex flex-col items-end gap-2 pt-0.5">
-                                        <div class="flex items-center gap-1 border border-slate-300 bg-slate-200 text-slate-600 px-2 py-1 rounded text-[11px] font-bold">
-                                            <span class="text-[12px]">⏱</span> {{ task.days }} 工作天
-                                        </div>
-                                        <div class="text-[11px] text-slate-500 font-medium tracking-wider mt-1">
-                                            {{ task.startDate }} 至 {{ task.endDate }}
-                                        </div>
-                                        <div class="text-[11px] text-slate-500 font-bold flex items-center">
-                                            <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
-                                        </div>
-                                    </div>
+                                </div>
+                                
+                                <h3 class="text-xl font-black text-slate-700 tracking-wide mt-1">{{ task.mainCategory }}</h3>
+                                
+                                <div class="text-lg text-slate-600 font-black tracking-widest mt-2.5 bg-slate-200 inline-block px-3 py-1 rounded-lg">
+                                    {{ formatTaskDate(task.startDate) }} ～ {{ formatTaskDate(task.endDate) }}
+                                </div>
+                                
+                                <div class="flex flex-wrap gap-1 mt-3">
+                                    <span v-for="(loc, lIdx) in getLocations(task)" :key="lIdx" class="flex items-center border border-slate-300 bg-slate-100 rounded px-2 py-0.5 text-[11px] font-bold">
+                                        <span class="text-blue-600">{{ loc.phase }}</span>
+                                        <span class="text-slate-400 mx-1.5">|</span>
+                                        <span class="text-slate-600">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
+                                    </span>
                                 </div>
                             </div>
                             
-                            <div v-if="task.expanded" class="px-4 pb-4">
+                            <div v-if="task.expanded" class="px-4 pb-4 border-t border-slate-200 pt-3">
                                 <div v-if="task.isSuspended" class="mb-3 text-xs p-2.5 rounded bg-rose-100 text-rose-800 border border-rose-200 font-bold">
                                     🛑 停工原因：{{ task.suspendReason }}
                                 </div>
                                 
-                                <hr class="border-slate-200 my-3">
-                                <div class="text-[12px] text-slate-700 leading-relaxed">
+                                <div class="flex flex-wrap gap-2 mb-3" v-if="task.subItems && task.subItems.length">
+                                    <span v-for="(sub, sIdx) in task.subItems" :key="sIdx" class="bg-slate-200 border border-slate-300 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
+                                </div>
+                                <div class="text-[12px] text-slate-700 leading-relaxed mb-4">
                                     <span class="font-bold block mb-1">備註事項:</span>
                                     <div class="pl-6 mt-1 whitespace-pre-wrap">{{ task.remark || '無' }}</div>
                                 </div>
                                 
-                                <hr class="border-slate-200 my-4">
-                                <div class="flex flex-wrap gap-2 mb-4" v-if="task.subItems && task.subItems.length">
-                                    <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
-                                </div>
-
                                 <div v-if="user" class="flex justify-between items-center mt-2">
                                     <div class="flex gap-2">
                                         <button v-if="task.isSuspended && canToggleSuspend(task)" @click.stop="toggleSuspendStatus(task)" class="bg-white border border-slate-300 text-slate-600 text-[12px] font-bold px-4 py-2 rounded">↩️ 取消停工</button>
@@ -413,7 +392,7 @@
                     <div v-if="newTask.mainCategory" class="bg-amber-50/30 p-3 rounded-xl border border-amber-100">
                         <label class="block text-xs font-bold text-amber-700 mb-2">施作細項</label>
                         <div class="grid grid-cols-2 gap-2 mb-3">
-                            <label v-for="sub in config.categories[newTask.mainCategory]" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
+                            <label v-for="(sub, sIdx) in config.categories[newTask.mainCategory]" :key="sIdx" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
                                 <input type="checkbox" :value="sub" v-model="newTask.subItems" class="mr-2 w-4 h-4 rounded text-amber-600 focus:ring-amber-500"> {{ sub }}
                             </label>
                             <span v-if="config.categories[newTask.mainCategory].length === 0" class="text-xs text-amber-500">無細項</span>
@@ -422,7 +401,7 @@
                         <div v-if="availablePermits.length > 0" class="pt-3 border-t border-amber-200/50">
                             <label class="block text-xs font-bold text-amber-700 mb-2">應辦申請單 (請勾選)</label>
                             <div class="grid grid-cols-2 gap-2">
-                                <label v-for="permit in availablePermits" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
+                                <label v-for="(permit, pIdx) in availablePermits" :key="pIdx" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
                                     <input type="checkbox" :value="permit" v-model="newTask.permits" class="mr-2 w-4 h-4 rounded text-amber-600 focus:ring-amber-500"> {{ permit }}
                                 </label>
                             </div>
@@ -454,21 +433,63 @@
         createApp({
             data() {
                 const today = new Date();
+                const y = today.getFullYear();
+                const m = String(today.getMonth() + 1).padStart(2, '0');
+                const d = String(today.getDate()).padStart(2, '0');
+                const todayStr = `${y}-${m}-${d}`;
+
                 return {
                     config: {
+                        buildings: ['FAB', 'CUP', 'OFFICE', 'SUP', '倉庫'],
+                        floors: ['LB1', 'LB2', 'L10', 'L20', 'L30', 'L40', 'L50', 'L60', 'L70', 'LR1', 'LR2'],
                         contractors: ['領鋒', '和億', '宏鎝', '富懋', '明辰', '明凱', '寰霈', '金鐠鑼'],
                         managers: ['N/A', '睿智', '昱凱', '國展', '旭承', '香雲', '玉琳', '怡霈', '承憲', '庭綺', '語宸'],
-                        categories: { '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'], '機櫃安裝': ['機櫃定位', '機櫃下線槽安裝', '設備安裝'], '開盤送電': ['電線佈放', '接臨時電盤', '接正式電盤', '結線未送電'], '話機安裝': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'], '器材備料': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'], '物料運送': ['設備進場', '線材搬運', '廢料清運'], '吊掛作業': ['器具進場', '設備起降'], '測PIM': ['查詢修正', '負載測試', 'PIM量測', '報告產出'], '訊號改善': ['訊號查修', '設備維修'], '設備驗收': ['設備驗收', '疑點拍攝'] }
+                        categories: {
+                            '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'],
+                            '機櫃安裝': ['機櫃定位', '機櫃下線槽安裝', '設備安裝'],
+                            '開盤送電': ['電線佈放', '接臨時電盤', '接正式電盤', '結線未送電'], 
+                            '話機安裝': ['電話幹纜佈放', '電話線佈放', '配管', '電話機安裝', '機櫃結線'],
+                            '器材備料': ['網路線打線', '電話線打線', '跳線測試', '導波管打線'],
+                            '物料運送': ['設備進場', '線材搬運', '廢料清運'],
+                            '吊掛作業': ['器具進場', '設備起降'], 
+                            '測PIM': ['查詢修正', '負載測試', 'PIM量測', '報告產出'],
+                            '訊號改善': ['訊號查修', '設備維修'],
+                            '設備驗收': ['設備驗收', '疑點拍攝']
+                        }
                     },
-                    tasksByMonth: {}, recentTasks: {}, loadedMonths: [], isLoadingHistory: false,
-                    user: null, showLoginModal: false, showModal: false, editingTaskId: null,
-                    currentYear: today.getFullYear(), currentMonth: today.getMonth(), todayStr: today.toISOString().split('T')[0],
-                    sortBy: 'time', visibleLimit: 20, forcedVisibleTaskId: null, showFilters: false,
-                    
+                    tasksByMonth: {}, 
+                    recentTasks: {}, 
+                    loadedMonths: [], 
+                    isLoadingHistory: false,
+                    isOnline: navigator.onLine, 
+                    user: null, 
+                    showLoginModal: false, 
+                    showModal: false, 
+                    editingTaskId: null,
+                    currentYear: y, 
+                    currentMonth: today.getMonth(), 
+                    todayStr: todayStr,
+                    sortBy: 'time', 
+                    visibleLimit: 20, 
+                    historyVisibleLimit: 0, 
+                    historyFetchCursor: { year: y, month: today.getMonth() },
+                    forcedVisibleTaskId: null, 
+                    showFilters: false,
                     filters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
                     appliedFilters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
-                    
-                    touchStartX: 0, _isSwiping: false, _deltaX: 0, showHeader: false,
+                    newTask: {
+                        startDate: todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
+                        contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
+                        mainCategory: '', remark: '', subItems: [], permits: []
+                    },
+                    touchStartX: 0, 
+                    isSwiping: false, 
+                    swipeDeltaX: 0, 
+                    showHeader: false, 
+                    lastScrollPosition: 0,
+                    mainTouchStartY: 0,
+                    isAtTopWhenTouchStarted: false,
+                    loginForm: { email: '', password: '', error: '' }
                 }
             },
             computed: {
@@ -487,6 +508,11 @@
                         if (f.startDate && t.endDate < f.startDate) return false;
                         if (f.endDate && t.startDate > f.endDate) return false;
                         if (f.contractor && t.contractor !== f.contractor) return false;
+                        if (f.manager && (!t.managers || !t.managers.includes(f.manager))) return false;
+                        if (f.phase) {
+                            let locs = this.getLocations(t);
+                            if (!locs.some(l => l.phase === f.phase)) return false;
+                        }
                         if (f.keyword) {
                             const kw = f.keyword.toLowerCase();
                             const matchText = `${t.mainCategory} ${t.location} ${t.remark || ''} ${t.contractor || ''}`.toLowerCase();
@@ -550,26 +576,76 @@
                 }
             },
             mounted() {
+                window.addEventListener('online', () => this.isOnline = true);
+                window.addEventListener('offline', () => this.isOnline = false);
+                window.addEventListener('scroll', this.handleScroll, { passive: true });
+                window.addEventListener('touchstart', this.handleGlobalTouchStart, { passive: true });
+                window.addEventListener('touchmove', this.handleGlobalTouchMove, { passive: true });
+
                 onAuthStateChanged(auth, u => this.user = u);
+                
                 const qRecent = query(tasksCollection, orderBy('createdAt', 'desc'), limit(150));
                 onSnapshot(qRecent, snap => {
                     snap.docChanges().forEach(change => {
                         if (change.type !== "removed") {
-                            this.recentTasks[change.doc.id] = { id: change.doc.id, ...change.doc.data(), expanded: false };
-                        } else { delete this.recentTasks[change.doc.id]; }
+                            const docData = change.doc.data();
+                            const id = change.doc.id;
+                            const existingTask = this.recentTasks[id] || this.allTasksFlat.find(t => t.id === id);
+                            const expanded = existingTask ? existingTask.expanded : false;
+                            this.recentTasks[id] = { id, ...docData, expanded };
+                        } else { 
+                            delete this.recentTasks[change.doc.id]; 
+                        }
                     });
                     this.recentTasks = { ...this.recentTasks };
-                });
-                this.loadSurroundingMonths(this.currentYear, this.currentMonth);
+                }, (error) => { console.error("即時連線錯誤:", error); });
 
-                const observer = new IntersectionObserver((entries) => {
-                    if (!entries[0].isIntersecting) {
-                        this.showHeader = false;
-                    }
-                }, { threshold: [0] });
-                observer.observe(document.querySelector('#top-sentinel'));
+                this.loadSurroundingMonths(this.currentYear, this.currentMonth);
+            },
+            unmounted() {
+                window.removeEventListener('scroll', this.handleScroll);
+                window.removeEventListener('touchstart', this.handleGlobalTouchStart);
+                window.removeEventListener('touchmove', this.handleGlobalTouchMove);
             },
             methods: {
+                handleScroll() {
+                    const currentScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+                    // 如果向下捲動超過 50px 立刻隱藏
+                    if (currentScrollPosition > this.lastScrollPosition && currentScrollPosition > 50) {
+                        this.showHeader = false;
+                    }
+                    this.lastScrollPosition = currentScrollPosition;
+                },
+                handleGlobalTouchStart(e) {
+                    if (window.scrollY <= 10) {
+                        this.mainTouchStartY = e.touches ? e.touches[0].clientY : e.clientY;
+                        this.isAtTopWhenTouchStarted = true;
+                    } else {
+                        this.isAtTopWhenTouchStarted = false;
+                    }
+                },
+                handleGlobalTouchMove(e) {
+                    if (this.isAtTopWhenTouchStarted && window.scrollY <= 10 && !this.showHeader) {
+                        let currentY = e.touches ? e.touches[0].clientY : e.clientY;
+                        let deltaY = currentY - this.mainTouchStartY;
+                        // 明顯往下拉超過 40px，顯示 Header
+                        if (deltaY > 40) {
+                            this.showHeader = true;
+                        }
+                    }
+                },
+                
+                formatTaskDate(dateStr) {
+                    if (!dateStr) return '';
+                    const d = new Date(dateStr);
+                    if (isNaN(d.getTime())) return '';
+                    const days = ['日', '一', '二', '三', '四', '五', '六'];
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const weekDay = days[d.getDay()];
+                    return `${month}/${day}(${weekDay})`;
+                },
+
                 applySearch() {
                     this.appliedFilters = JSON.parse(JSON.stringify(this.filters));
                     this.showFilters = false;
@@ -578,15 +654,19 @@
                     this.filters = { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' };
                     this.applySearch();
                 },
-                handleTouchStart(e) { this.touchStartX = e.touches[0].clientX; this._isSwiping = true; this.$refs.swipeContainer.style.transition = 'none'; },
-                handleTouchMove(e) { if (!this._isSwiping) return; let dx = e.touches[0].clientX - this.touchStartX; this.$refs.swipeContainer.style.transform = `translateX(calc(-33.333333% + ${dx}px))`; },
+                handleTouchStart(e) { this.touchStartX = e.touches[0].clientX; this.isSwiping = true; if(this.$refs.swipeContainer) this.$refs.swipeContainer.style.transition = 'none'; },
+                handleTouchMove(e) { if (!this.isSwiping) return; let currentX = e.touches ? e.touches[0].clientX : e.clientX; let dx = currentX - this.touchStartX; if(this.$refs.swipeContainer) this.$refs.swipeContainer.style.transform = `translateX(calc(-33.333333% + ${dx}px))`; },
                 handleTouchEnd(e) {
-                    this._isSwiping = false; let dx = e.changedTouches[0].clientX - this.touchStartX;
+                    if(!this.isSwiping) return;
+                    this.isSwiping = false; 
+                    let currentX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+                    let dx = currentX - this.touchStartX;
                     if (Math.abs(dx) > 50) { this.executeSwipeAnimation(dx > 0 ? -1 : 1); }
-                    else { this.$refs.swipeContainer.style.transition = 'transform 0.3s'; this.$refs.swipeContainer.style.transform = 'translateX(-33.333333%)'; }
+                    else { if(this.$refs.swipeContainer) { this.$refs.swipeContainer.style.transition = 'transform 0.3s'; this.$refs.swipeContainer.style.transform = 'translateX(-33.333333%)'; } }
                 },
                 executeSwipeAnimation(dir) {
-                    const c = this.$refs.swipeContainer; c.style.transition = 'transform 0.3s';
+                    const c = this.$refs.swipeContainer; if(!c) return;
+                    c.style.transition = 'transform 0.3s';
                     c.style.transform = `translateX(${dir === 1 ? '-66.6666%' : '0%'})`;
                     setTimeout(() => { this.changeMonth(dir); c.style.transition = 'none'; c.style.transform = 'translateX(-33.3333%)'; }, 300);
                 },
@@ -600,7 +680,9 @@
                     try {
                         const q = query(tasksCollection, where("endDate", ">=", `${mKey}-01`), where("endDate", "<=", `${mKey}-31`));
                         const snap = await getDocs(q);
-                        let data = []; snap.forEach(d => data.push({ id: d.id, ...d.data(), expanded: false }));
+                        let data = []; snap.forEach(d => {
+                            if(!this.recentTasks[d.id]) data.push({ id: d.id, ...d.data(), expanded: false });
+                        });
                         this.tasksByMonth[mKey] = data; this.loadedMonths.push(mKey);
                     } finally { this.isLoadingHistory = false; }
                 },
@@ -694,8 +776,6 @@
                 },
                 getLocations(t) { return t.locations || [{phase:'P2', building:t.building, floor:t.floor}]; },
                 changeMonth(dir) { this.currentMonth += dir; if(this.currentMonth > 11){ this.currentMonth=0; this.currentYear++; } else if(this.currentMonth < 0){ this.currentMonth=11; this.currentYear--; } this.loadSurroundingMonths(this.currentYear, this.currentMonth); },
-                async loadSurroundingMonths(y, m) { let py=y, pm=m-1; if(pm<0){pm=11; py--;} let ny=y, nm=m+1; if(nm>11){nm=0; ny++;} await Promise.all([this.fetchMonthFromFirebase(py, pm), this.fetchMonthFromFirebase(y, m), this.fetchMonthFromFirebase(ny, nm)]); },
-                isToday(s) { return s === this.todayStr; },
                 async handleLogin() {
                     this.isLoggingIn = true; this.loginForm.error = '';
                     try { await signInWithEmailAndPassword(auth, this.loginForm.email, this.loginForm.password); this.showLoginModal = false; this.loginForm.email = ''; this.loginForm.password = ''; } 
