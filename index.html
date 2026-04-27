@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v49.4 (省電優化版)</title>
+    <title>工程執行紀錄系統 v50.0 (離線節能架構版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -52,6 +52,7 @@
               :class="showHeader ? 'pt-[88px]' : 'pt-4'" @scroll="handleScroll">
             
             <div class="min-h-[calc(100vh-20px)] flex flex-col px-4 pb-2 relative z-10 bg-gray-50">
+                
                 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3 relative flex-shrink-0 flex flex-col z-20">
                     <div v-if="isLoadingHistory" class="absolute top-2 right-2 flex items-center justify-center bg-white/90 backdrop-blur rounded-full px-2 py-1 text-[9px] font-bold text-blue-500 shadow border border-blue-100 z-30">
                         <span class="animate-spin mr-1">🔄</span> 載入資料...
@@ -525,7 +526,7 @@
     <script type="module">
         import { createApp, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, orderBy, limit, getDocs, enableIndexedDbPersistence, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
         const firebaseConfig = {
@@ -572,7 +573,6 @@
                 return {
                     config: CONFIG,
                     tasksByMonth: {}, 
-                    recentTasks: {}, 
                     loadedMonths: [],
                     isLoadingHistory: false,
                     isOnline: navigator.onLine,
@@ -616,7 +616,6 @@
                     Object.values(this.tasksByMonth).forEach(monthArray => {
                         monthArray.forEach(t => all[t.id] = t);
                     });
-                    Object.values(this.recentTasks).forEach(t => all[t.id] = t);
                     return Object.values(all);
                 },
                 availablePermits() {
@@ -708,22 +707,7 @@
 
                 onAuthStateChanged(auth, (user) => { this.user = user; });
 
-                const qRecent = query(tasksCollection, orderBy('createdAt', 'desc'), limit(150));
-                onSnapshot(qRecent, { includeMetadataChanges: true }, (snapshot) => {
-                    snapshot.docChanges().forEach((change) => {
-                        if (change.type === "added" || change.type === "modified") {
-                            const id = change.doc.id;
-                            const docData = change.doc.data();
-                            const expanded = this.recentTasks[id] ? this.recentTasks[id].expanded : false;
-                            this.recentTasks[id] = { id, ...docData, expanded };
-                            this.recentTasks = { ...this.recentTasks };
-                        } else if (change.type === "removed") {
-                            delete this.recentTasks[change.doc.id];
-                            this.recentTasks = { ...this.recentTasks };
-                        }
-                    });
-                });
-
+                // 移除 onSnapshot，改為初始化時手動載入目前月份資料
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
             },
             methods: {
@@ -909,11 +893,37 @@
                         const q = query(tasksCollection, where("endDate", ">=", startStr), where("endDate", "<=", endStr));
                         const snapshot = await getDocs(q);
                         let monthData = [];
-                        snapshot.forEach(doc => { if (!this.recentTasks[doc.id]) monthData.push({ id: doc.id, ...doc.data(), expanded: false }); });
+                        snapshot.forEach(doc => { 
+                            // 不再檢查 recentTasks，因為去除了即時推播
+                            monthData.push({ id: doc.id, ...doc.data(), expanded: false }); 
+                        });
                         this.tasksByMonth[monthKey] = monthData;
                         this.tasksByMonth = { ...this.tasksByMonth };
                         this.loadedMonths.push(monthKey);
                     } finally { this.isLoadingHistory = false; }
+                },
+                // 手動更新本地快取 (建立/修改/刪除/狀態變更時調用)
+                updateLocalCache(taskId, newData, isDelete = false) {
+                    let updated = false;
+                    for (let monthKey in this.tasksByMonth) {
+                        let idx = this.tasksByMonth[monthKey].findIndex(t => t.id === taskId);
+                        if (idx > -1) {
+                            if (isDelete) {
+                                this.tasksByMonth[monthKey].splice(idx, 1);
+                            } else {
+                                this.tasksByMonth[monthKey][idx] = { ...this.tasksByMonth[monthKey][idx], ...newData };
+                            }
+                            updated = true;
+                        }
+                    }
+                    if (!updated && !isDelete && newData) {
+                        // 新增的工項，放到正確的月份
+                        let [y, m] = newData.startDate.split('-');
+                        let monthKey = `${y}-${m}`;
+                        if (!this.tasksByMonth[monthKey]) this.tasksByMonth[monthKey] = [];
+                        this.tasksByMonth[monthKey].push({ id: taskId, ...newData, expanded: false });
+                    }
+                    this.tasksByMonth = { ...this.tasksByMonth };
                 },
                 exportExcel() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
@@ -1136,18 +1146,31 @@
                 async toggleCompleteStatus(task) {
                     if (!this.user) return;
                     const next = !task.isCompleted;
-                    await updateDoc(doc(db, 'tasks', task.id), { isCompleted: next, completedDate: next ? this.todayStr : null });
+                    try {
+                        await updateDoc(doc(db, 'tasks', task.id), { isCompleted: next, completedDate: next ? this.todayStr : null });
+                        this.updateLocalCache(task.id, { isCompleted: next, completedDate: next ? this.todayStr : null });
+                    } catch (e) { alert("更新失敗"); }
                 },
                 async toggleSuspendStatus(task) {
                     if (!this.user) return;
                     const next = !task.isSuspended;
                     let reason = next ? prompt("請輸入停工原因：") : null;
                     if (next && !reason) return;
-                    await updateDoc(doc(db, 'tasks', task.id), { isSuspended: next, suspendReason: reason, suspendDate: next ? this.todayStr : null, isCompleted: false });
+                    try {
+                        await updateDoc(doc(db, 'tasks', task.id), { isSuspended: next, suspendReason: reason, suspendDate: next ? this.todayStr : null, isCompleted: false });
+                        this.updateLocalCache(task.id, { isSuspended: next, suspendReason: reason, suspendDate: next ? this.todayStr : null, isCompleted: false });
+                    } catch (e) { alert("更新失敗"); }
                 },
                 canToggleComplete(task) { if (task.isCompleted) return task.completedDate === this.todayStr; return !task.isSuspended; },
                 canToggleSuspend(task) { if (task.isSuspended) return task.suspendDate === this.todayStr; return !task.isCompleted; },
-                async confirmDelete(task) { if (this.user && confirm(`確定要刪除「${task.mainCategory}」嗎？`)) await deleteDoc(doc(db, 'tasks', task.id)); },
+                async confirmDelete(task) { 
+                    if (this.user && confirm(`確定要刪除「${task.mainCategory}」嗎？`)) {
+                        try {
+                            await deleteDoc(doc(db, 'tasks', task.id));
+                            this.updateLocalCache(task.id, null, true);
+                        } catch (e) { alert("刪除失敗"); }
+                    }
+                },
                 async saveTask() {
                     if (!this.user) return alert('權限不足，請先登入。');
                     const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days, this.newTask.includeSaturday, this.newTask.includeSunday);
@@ -1164,10 +1187,13 @@
                         isSuspended: this.newTask.isSuspended || false, suspendReason: this.newTask.suspendReason || null, suspendDate: this.newTask.suspendDate || null
                     };
                     try {
-                        if (this.editingTaskId) await updateDoc(doc(db, 'tasks', this.editingTaskId), formattedData);
-                        else {
+                        if (this.editingTaskId) {
+                            await updateDoc(doc(db, 'tasks', this.editingTaskId), formattedData);
+                            this.updateLocalCache(this.editingTaskId, formattedData);
+                        } else {
                             formattedData.createdAt = serverTimestamp();
-                            await addDoc(tasksCollection, formattedData);
+                            const docRef = await addDoc(tasksCollection, formattedData);
+                            this.updateLocalCache(docRef.id, formattedData);
                         }
                         this.showModal = false;
                         let [sy, sm] = this.newTask.startDate.split('-'); this.currentYear = parseInt(sy, 10); this.currentMonth = parseInt(sm, 10) - 1;
@@ -1198,10 +1224,7 @@
                         
                         let [y, m] = task.startDate.split('-');
                         let monthKey = `${y}-${m}`;
-                        if (this.recentTasks[task.id]) {
-                            this.recentTasks[task.id].expanded = true;
-                            this.recentTasks = { ...this.recentTasks };
-                        } else if (this.tasksByMonth[monthKey]) {
+                        if (this.tasksByMonth[monthKey]) {
                             let idx = this.tasksByMonth[monthKey].findIndex(t => t.id === task.id);
                             if (idx > -1) {
                                 this.tasksByMonth[monthKey][idx].expanded = true;
