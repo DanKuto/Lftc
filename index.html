@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v47.1 (搜尋優化版)</title>
+    <title>工程執行紀錄系統 v47.2 (版面與功能優化)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -203,14 +203,11 @@
                                             <h3 class="text-xl font-black text-slate-800 tracking-wide mt-2">{{ task.mainCategory }}</h3>
                                         </div>
                                         
-                                        <div class="flex flex-col items-end gap-2 pt-0.5">
-                                            <div class="flex items-center gap-1 border border-blue-200 bg-blue-50 text-blue-700 px-2 py-1 rounded text-[11px] font-bold">
-                                                <span class="text-[12px]">⏱</span> {{ task.days }} 工作天
+                                        <div class="flex flex-col items-end gap-1 pt-0.5">
+                                            <div class="text-[14px] text-slate-700 font-black tracking-wide bg-blue-50/50 px-2.5 py-1.5 rounded border border-blue-100 shadow-sm text-center">
+                                                {{ formatDateWithDay(task.startDate) }} ～ {{ formatDateWithDay(task.endDate) }}
                                             </div>
-                                            <div class="text-[11px] text-slate-500 font-medium tracking-wider mt-1">
-                                                {{ task.startDate }} 至 {{ task.endDate }}
-                                            </div>
-                                            <div class="text-[11px] text-slate-500 font-bold flex items-center">
+                                            <div class="text-[11px] text-slate-500 font-bold flex items-center mt-1">
                                                 <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
                                             </div>
                                         </div>
@@ -231,14 +228,18 @@
                                         <span class="mr-2 shrink-0">應辦:</span>
                                         <span class="font-normal">{{ task.permits && task.permits.length ? task.permits.join(', ') : '無' }}</span>
                                     </div>
-                                    <div v-if="user" class="flex justify-between items-center">
+                                    
+                                    <div v-if="user" class="flex justify-between items-center mt-2 border-t border-slate-100 pt-3">
                                         <div class="flex gap-2">
-                                            <button @click.stop="toggleCompleteStatus(task)" class="bg-[#14b8a6] hover:bg-teal-500 text-white text-[12px] font-bold px-6 py-2 rounded transition-colors shadow-sm">已完工</button>
-                                            <button @click.stop="toggleSuspendStatus(task)" class="bg-[#ef4444] hover:bg-red-500 text-white text-[12px] font-bold px-6 py-2 rounded transition-colors shadow-sm">停工</button>
+                                            <button @click.stop="toggleCompleteStatus(task)" class="bg-[#14b8a6] hover:bg-teal-500 text-white text-[12px] font-bold px-4 py-2 rounded transition-colors shadow-sm">已完工</button>
+                                            <button @click.stop="toggleSuspendStatus(task)" class="bg-[#ef4444] hover:bg-red-500 text-white text-[12px] font-bold px-4 py-2 rounded transition-colors shadow-sm">停工</button>
                                         </div>
+                                        
+                                        <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="mx-2 flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-blue-100 text-blue-600 font-black text-lg hover:bg-blue-200 hover:scale-105 active:scale-95 transition-all shadow-sm">＋</button>
+
                                         <div class="flex gap-2">
-                                            <button @click.stop="openEditModal(task)" class="bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-[12px] font-bold px-6 py-2 rounded transition-colors shadow-sm">修改</button>
-                                            <button @click.stop="confirmDelete(task)" class="bg-white border border-slate-300 text-[#ef4444] hover:bg-red-50 text-[12px] font-bold px-6 py-2 rounded transition-colors shadow-sm">刪除</button>
+                                            <button @click.stop="openEditModal(task)" class="bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 text-[12px] font-bold px-4 py-2 rounded transition-colors shadow-sm">修改</button>
+                                            <button @click.stop="confirmDelete(task)" class="bg-white border border-slate-300 text-[#ef4444] hover:bg-red-50 text-[12px] font-bold px-4 py-2 rounded transition-colors shadow-sm">刪除</button>
                                         </div>
                                     </div>
                                 </div>
@@ -287,14 +288,11 @@
                                         <h3 class="text-xl font-black text-slate-700 tracking-wide mt-2">{{ task.mainCategory }}</h3>
                                     </div>
                                     
-                                    <div class="flex flex-col items-end gap-2 pt-0.5">
-                                        <div class="flex items-center gap-1 border border-slate-300 bg-slate-200 text-slate-600 px-2 py-1 rounded text-[11px] font-bold">
-                                            <span class="text-[12px]">⏱</span> {{ task.days }} 工作天
+                                    <div class="flex flex-col items-end gap-1 pt-0.5">
+                                        <div class="text-[14px] text-slate-600 font-black tracking-wide bg-slate-200 px-2.5 py-1.5 rounded border border-slate-300 shadow-sm text-center">
+                                            {{ formatDateWithDay(task.startDate) }} ～ {{ formatDateWithDay(task.endDate) }}
                                         </div>
-                                        <div class="text-[11px] text-slate-500 font-medium tracking-wider mt-1">
-                                            {{ task.startDate }} 至 {{ task.endDate }}
-                                        </div>
-                                        <div class="text-[11px] text-slate-500 font-bold flex items-center">
+                                        <div class="text-[11px] text-slate-500 font-bold flex items-center mt-1">
                                             <span class="mr-1 text-[13px]">👤</span> {{ task.managers && task.managers.length ? task.managers.join(', ') : '未指定' }}
                                         </div>
                                     </div>
@@ -314,11 +312,15 @@
                                 <div class="flex flex-wrap gap-2 mb-4" v-if="task.subItems && task.subItems.length">
                                     <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
                                 </div>
-                                <div v-if="user" class="flex justify-between items-center mt-2">
+
+                                <div v-if="user" class="flex justify-between items-center mt-2 border-t border-slate-200 pt-3">
                                     <div class="flex gap-2">
-                                        <button v-if="task.isSuspended && canToggleSuspend(task)" @click.stop="toggleSuspendStatus(task)" class="bg-white border border-slate-300 text-slate-600 text-[12px] font-bold px-4 py-2 rounded">↩️ 取消停工</button>
-                                        <button v-else-if="!task.isSuspended && canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" class="bg-white border border-slate-300 text-slate-600 text-[12px] font-bold px-4 py-2 rounded">↩️ 取消完工</button>
+                                        <button v-if="task.isSuspended && canToggleSuspend(task)" @click.stop="toggleSuspendStatus(task)" class="bg-white border border-slate-300 text-slate-600 text-[12px] font-bold px-3 py-2 rounded">↩️ 取消停工</button>
+                                        <button v-else-if="!task.isSuspended && canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" class="bg-white border border-slate-300 text-slate-600 text-[12px] font-bold px-3 py-2 rounded">↩️ 取消完工</button>
                                     </div>
+                                    
+                                    <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="mx-2 flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-blue-100 text-blue-600 font-black text-lg hover:bg-blue-200 hover:scale-105 active:scale-95 transition-all shadow-sm">＋</button>
+
                                     <button @click.stop="confirmDelete(task)" class="bg-white border border-slate-300 text-[#ef4444] text-[12px] font-bold px-4 py-2 rounded">刪除</button>
                                 </div>
                             </div>
@@ -376,7 +378,102 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">開始日期</label>
                         <input v-model="newTask.startDate" type="date" required class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-base mb-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                        <div class="flex items-center gap-4 bg-gray-50 border border-gray-200 p-2 rounded-lg">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="newTask.includeSaturday" class="w-4 h-4 rounded border-gray-300 text-blue-600">
+                                <span class="ml-2 text-xs font-bold text-gray-600">週六施工</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="newTask.includeSunday" class="w-4 h-4 rounded border-gray-300 text-blue-600">
+                                <span class="ml-2 text-xs font-bold text-gray-600">週日施工</span>
+                            </label>
+                        </div>
                     </div>
+
+                    <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                        <label class="block text-xs font-bold text-blue-800 mb-2">施工地點</label>
+                        <div v-for="(loc, index) in newTask.locations" :key="index" class="mb-3 p-3 bg-white rounded-lg shadow-sm border border-blue-50">
+                            <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
+                                <div class="flex space-x-6">
+                                    <label class="flex items-center text-sm font-bold text-gray-700 cursor-pointer">
+                                        <input type="radio" v-model="loc.phase" value="P1" class="mr-2 w-4 h-4 accent-amber-500"> P1
+                                    </label>
+                                    <label class="flex items-center text-sm font-bold text-gray-700 cursor-pointer">
+                                        <input type="radio" v-model="loc.phase" value="P2" class="mr-2 w-4 h-4 accent-blue-600"> P2
+                                    </label>
+                                </div>
+                                <div class="flex gap-1">
+                                    <button type="button" v-if="newTask.locations.length > 1" @click="newTask.locations.splice(index, 1)" class="w-7 h-7 flex items-center justify-center bg-red-50 text-red-500 rounded font-black hover:bg-red-100 transition-colors">－</button>
+                                    <button type="button" v-if="index === newTask.locations.length - 1" @click="newTask.locations.push({ phase: 'P2', building: 'FAB', floor: '' })" class="w-7 h-7 flex items-center justify-center bg-blue-100 text-blue-600 rounded font-black hover:bg-blue-200 transition-colors">＋</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <select v-model="loc.building" @change="loc.building === '倉庫' ? loc.floor = '無' : (loc.floor === '無' ? loc.floor = '' : null)" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option v-for="b in config.buildings" :value="b">{{ b }}</option>
+                                </select>
+                                <select v-model="loc.floor" :required="loc.building !== '倉庫'" :disabled="loc.building === '倉庫'" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-base disabled:opacity-50 focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="" disabled v-if="loc.building !== '倉庫'">請選擇樓層</option>
+                                    <option v-if="loc.building === '倉庫'" value="無">無</option>
+                                    <option v-for="f in config.floors" :key="f" :value="f">{{ f }}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">負責班組 / 包商</label>
+                        <input list="contractors-list" v-model="newTask.contractor" placeholder="請選擇或輸入" required class="w-full bg-white border border-gray-200 rounded-lg p-3 text-base mb-3 shadow-sm placeholder:text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        <datalist id="contractors-list"><option v-for="c in config.contractors" :value="c"></option></datalist>
+
+                        <label class="block text-xs font-bold text-gray-700 mb-1">管理職</label>
+                        <div v-for="(mgr, index) in newTask.managers" :key="index" class="flex items-center gap-2 mb-2">
+                            <input list="managers-list" v-model="newTask.managers[index]" placeholder="請選擇或輸入" required class="flex-grow bg-white border border-gray-200 rounded-lg p-3 text-base shadow-sm placeholder:text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            <button type="button" v-if="newTask.managers.length > 1" @click="newTask.managers.splice(index, 1)" class="bg-red-100 text-red-600 w-10 h-10 rounded-lg font-black shrink-0 hover:bg-red-200">－</button>
+                            <button type="button" v-if="index === newTask.managers.length - 1" @click="newTask.managers.push('')" class="bg-blue-200 text-blue-700 w-10 h-10 rounded-lg font-black shrink-0 hover:bg-blue-300">＋</button>
+                        </div>
+                        <datalist id="managers-list"><option v-for="m in config.managers" :value="m"></option></datalist>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">預估工期 (工作天)</label>
+                            <select v-model="newTask.days" required class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option v-for="n in 7" :key="n" :value="n">{{ n }} 天</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">主要工項</label>
+                            <select v-model="newTask.mainCategory" @change="handleCategoryChange" required class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="" disabled>請選擇...</option>
+                                <option v-for="(subItems, category) in config.categories" :value="category">{{ category }}</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-500 mb-1">備註 (選填)</label>
+                        <textarea v-model="newTask.remark" rows="2" placeholder="請輸入需要交辦的備註事項..." class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-base resize-none shadow-inner focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                    </div>
+
+                    <div v-if="newTask.mainCategory" class="bg-amber-50/30 p-3 rounded-xl border border-amber-100">
+                        <label class="block text-xs font-bold text-amber-700 mb-2">施作細項</label>
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <label v-for="sub in config.categories[newTask.mainCategory]" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
+                                <input type="checkbox" :value="sub" v-model="newTask.subItems" class="mr-2 w-4 h-4 rounded text-amber-600 focus:ring-amber-500"> {{ sub }}
+                            </label>
+                            <span v-if="config.categories[newTask.mainCategory].length === 0" class="text-xs text-amber-500">無細項</span>
+                        </div>
+
+                        <div v-if="availablePermits.length > 0" class="pt-3 border-t border-amber-200/50">
+                            <label class="block text-xs font-bold text-amber-700 mb-2">應辦申請單 (請勾選)</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label v-for="permit in availablePermits" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
+                                    <input type="checkbox" :value="permit" v-model="newTask.permits" class="mr-2 w-4 h-4 rounded text-amber-600 focus:ring-amber-500"> {{ permit }}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
                      <button type="submit" class="w-full text-white font-black py-4 rounded-2xl shadow-lg mt-6 active:scale-95 transition-all flex justify-center items-center"
                              :class="editingTaskId ? 'bg-amber-500 shadow-amber-200 hover:bg-amber-600' : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'">
                         {{ editingTaskId ? '儲存修改 (自動同步雲端)' : '建立排程 (自動同步雲端)' }}
@@ -481,7 +578,12 @@
                     Object.values(this.recentTasks).forEach(t => all[t.id] = t);
                     return Object.values(all);
                 },
-                
+                availablePermits() {
+                    if (!this.newTask.mainCategory) return [];
+                    if (this.newTask.mainCategory === '器材備料') return []; 
+                    if (this.newTask.mainCategory === '物料運送') return ['車輛進廠放行單', '物料進出放行單']; 
+                    return ['一般施工單', '變電站申請', '離架申請', '天花板申請']; 
+                },
                 threeMonthsGrids() {
                     let prevY = this.currentYear, prevM = this.currentMonth - 1;
                     if (prevM < 0) { prevM = 11; prevY--; }
@@ -584,6 +686,14 @@
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
             },
             methods: {
+                formatDateWithDay(dateStr) {
+                    if (!dateStr) return '';
+                    const parts = dateStr.split('-');
+                    if (parts.length !== 3) return dateStr;
+                    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                    const days = ['日', '一', '二', '三', '四', '五', '六'];
+                    return `${parts[1]}/${parts[2]}(${days[d.getDay()]})`;
+                },
                 applyFilters() {
                     this.activeFilters = JSON.parse(JSON.stringify(this.filters));
                 },
@@ -803,30 +913,16 @@
                     const headerStyle = {
                         font: { bold: true, color: { rgb: "000000" } },
                         fill: { fgColor: { rgb: "D9D9D9" } },
-                        alignment: { horizontal: "left", vertical: "center" },
-                        border: {
-                            top: { style: "thin", color: { rgb: "BFBFBF" } }, bottom: { style: "thin", color: { rgb: "BFBFBF" } },
-                            left: { style: "thin", color: { rgb: "BFBFBF" } }, right: { style: "thin", color: { rgb: "BFBFBF" } }
-                        }
+                        alignment: { horizontal: "left", vertical: "center" }
                     };
-
                     const dateColStyle = {
                         font: { bold: true, color: { rgb: "000000" } },
                         fill: { fgColor: { rgb: "F2F2F2" } },
-                        alignment: { horizontal: "left", vertical: "top" },
-                        border: {
-                            top: { style: "thin", color: { rgb: "BFBFBF" } }, bottom: { style: "thin", color: { rgb: "BFBFBF" } },
-                            left: { style: "thin", color: { rgb: "BFBFBF" } }, right: { style: "thin", color: { rgb: "BFBFBF" } }
-                        }
+                        alignment: { horizontal: "left", vertical: "top" }
                     };
-
                     const dataStyle = {
                         font: { color: { rgb: "000000" } },
-                        alignment: { horizontal: "left", vertical: "top", wrapText: true },
-                        border: {
-                            top: { style: "thin", color: { rgb: "BFBFBF" } }, bottom: { style: "thin", color: { rgb: "BFBFBF" } },
-                            left: { style: "thin", color: { rgb: "BFBFBF" } }, right: { style: "thin", color: { rgb: "BFBFBF" } }
-                        }
+                        alignment: { horizontal: "left", vertical: "top", wrapText: true }
                     };
 
                     let range1 = XLSX.utils.decode_range(ws1['!ref']);
@@ -844,14 +940,9 @@
                         for (let C = range2.s.c; C <= range2.e.c; ++C) {
                             let cellRef = XLSX.utils.encode_cell({ r: R, c: C });
                             if (!ws2[cellRef]) ws2[cellRef] = { t: 's', v: '' };
-                            
-                            if (R === 0) {
-                                ws2[cellRef].s = headerStyle;
-                            } else if (C === 0 || C === 1) {
-                                ws2[cellRef].s = dateColStyle;
-                            } else {
-                                ws2[cellRef].s = dataStyle;
-                            }
+                            if (R === 0) ws2[cellRef].s = headerStyle;
+                            else if (C === 0 || C === 1) ws2[cellRef].s = dateColStyle;
+                            else ws2[cellRef].s = dataStyle;
                         }
                     }
                     ws2['!cols'] = [{wch:12},{wch:6},{wch:15},{wch:8},{wch:8},{wch:8},{wch:15},{wch:25},{wch:35},{wch:20}];
@@ -867,12 +958,81 @@
                     let name = (contractor || '').trim(); return fixedMap[name] || 'bg-slate-400';
                 },
                 getLocations(task) { return task.locations || [{ phase: 'P2', building: task.building, floor: task.floor }]; },
+                expandHistory() {
+                    this.historyVisibleLimit += 10;
+                    if (this.completedTasks.length < this.historyVisibleLimit) {
+                        this.historyFetchCursor.month--;
+                        if (this.historyFetchCursor.month < 0) {
+                            this.historyFetchCursor.month = 11;
+                            this.historyFetchCursor.year--;
+                        }
+                        this.fetchMonthFromFirebase(this.historyFetchCursor.year, this.historyFetchCursor.month);
+                    }
+                },
+                loadMore() { this.visibleLimit += 10; },
+                hideCompletedTasks() { 
+                    this.historyVisibleLimit = 0; 
+                    this.forcedVisibleTaskId = null; 
+                    this.historyFetchCursor = { year: this.currentYear, month: this.currentMonth };
+                },
                 async handleLogin() {
                     this.isLoggingIn = true; this.loginForm.error = '';
                     try { await signInWithEmailAndPassword(auth, this.loginForm.email, this.loginForm.password); this.showLoginModal = false; }
                     catch (e) { this.loginForm.error = "錯誤。"; } finally { this.isLoggingIn = false; }
                 },
                 handleLogout() { signOut(auth); },
+                openNewModal() {
+                    this.editingTaskId = null;
+                    this.newTask = {
+                        startDate: this.todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
+                        contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
+                        mainCategory: '', remark: '', subItems: [], permits: []
+                    };
+                    this.showModal = true;
+                },
+                openEditModal(task) {
+                    this.editingTaskId = task.id;
+                    this.newTask = { 
+                        ...task, 
+                        locations: task.locations && task.locations.length > 0 ? JSON.parse(JSON.stringify(task.locations)) : [{ phase: 'P2', building: task.building, floor: task.floor }],
+                        managers: task.managers && task.managers.length > 0 ? [...task.managers] : [''],
+                        remark: task.remark || '', permits: task.permits ? [...task.permits] : []
+                    };
+                    this.showModal = true;
+                },
+                // 新增的複製工項方法
+                duplicateTask(task) {
+                    this.editingTaskId = null; // 設為 null 以觸發建立新工項
+                    this.newTask = {
+                        startDate: task.startDate,
+                        days: task.days,
+                        locations: task.locations && task.locations.length > 0 ? JSON.parse(JSON.stringify(task.locations)) : [{ phase: 'P2', building: task.building, floor: task.floor }],
+                        contractor: task.contractor || '',
+                        managers: task.managers && task.managers.length > 0 ? [...task.managers] : [''],
+                        includeSaturday: task.includeSaturday || false,
+                        includeSunday: task.includeSunday || false,
+                        mainCategory: task.mainCategory || '',
+                        remark: task.remark || '',
+                        subItems: task.subItems ? [...task.subItems] : [],
+                        permits: task.permits ? [...task.permits] : []
+                    };
+                    this.showModal = true; // 開啟 Modal，此時處於新建模式，使用者按儲存才會存入
+                },
+                handleCategoryChange() {
+                    this.newTask.subItems = []; this.newTask.permits = [];
+                    if (this.newTask.mainCategory === '物料運送') this.newTask.permits = ['車輛進廠放行單', '物料進出放行單'];
+                },
+                calculateEndDate(start, days, incSat, incSun) {
+                    let [y, m, d] = start.split('-'); let date = new Date(y, m - 1, d);
+                    let totalDays = parseInt(days, 10); let count = 1; 
+                    while (count < totalDays) {
+                        date.setDate(date.getDate() + 1); let dayOfWeek = date.getDay(); let isWorkDay = true;
+                        if (dayOfWeek === 6 && !incSat) isWorkDay = false; if (dayOfWeek === 0 && !incSun) isWorkDay = false; 
+                        if (isWorkDay) count++;
+                    }
+                    let ey = date.getFullYear(); let em = String(date.getMonth() + 1).padStart(2, '0'); let ed = String(date.getDate()).padStart(2, '0');
+                    return `${ey}-${em}-${ed}`;
+                },
                 async toggleCompleteStatus(task) {
                     if (!this.user) return;
                     const next = !task.isCompleted;
@@ -881,12 +1041,39 @@
                 async toggleSuspendStatus(task) {
                     if (!this.user) return;
                     const next = !task.isSuspended;
-                    let reason = next ? prompt("停工原因：") : null;
+                    let reason = next ? prompt("請輸入停工原因：") : null;
                     if (next && !reason) return;
                     await updateDoc(doc(db, 'tasks', task.id), { isSuspended: next, suspendReason: reason, suspendDate: next ? this.todayStr : null, isCompleted: false });
                 },
-                async confirmDelete(task) { if (this.user && confirm("刪除？")) await deleteDoc(doc(db, 'tasks', task.id)); },
-                async saveTask() { /* ... 同原版儲存邏輯 ... */ },
+                canToggleComplete(task) { if (task.isCompleted) return task.completedDate === this.todayStr; return !task.isSuspended; },
+                canToggleSuspend(task) { if (task.isSuspended) return task.suspendDate === this.todayStr; return !task.isCompleted; },
+                async confirmDelete(task) { if (this.user && confirm(`確定要刪除「${task.mainCategory}」嗎？`)) await deleteDoc(doc(db, 'tasks', task.id)); },
+                async saveTask() {
+                    if (!this.user) return alert('權限不足，請先登入。');
+                    const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days, this.newTask.includeSaturday, this.newTask.includeSunday);
+                    let locationString = this.newTask.locations.map(l => `${l.phase} ${l.building}${l.floor!=='無'?' '+l.floor:''}`).join(' / ');
+                    const formattedData = {
+                        startDate: this.newTask.startDate, days: this.newTask.days, locations: JSON.parse(JSON.stringify(this.newTask.locations)),
+                        building: this.newTask.locations[0].building, floor: this.newTask.locations[0].floor, 
+                        contractor: this.newTask.contractor.trim(), managers: [...this.newTask.managers.filter(m => m.trim() !== '')], 
+                        includeSaturday: this.newTask.includeSaturday, includeSunday: this.newTask.includeSunday,
+                        mainCategory: this.newTask.mainCategory, remark: this.newTask.remark ? this.newTask.remark.trim() : '', 
+                        subItems: [...this.newTask.subItems], permits: [...this.newTask.permits],
+                        location: locationString, endDate: end,
+                        isCompleted: this.newTask.isCompleted || false, completedDate: this.newTask.completedDate || null,
+                        isSuspended: this.newTask.isSuspended || false, suspendReason: this.newTask.suspendReason || null, suspendDate: this.newTask.suspendDate || null
+                    };
+                    try {
+                        if (this.editingTaskId) await updateDoc(doc(db, 'tasks', this.editingTaskId), formattedData);
+                        else {
+                            formattedData.createdAt = serverTimestamp();
+                            await addDoc(tasksCollection, formattedData);
+                        }
+                        this.showModal = false;
+                        let [sy, sm] = this.newTask.startDate.split('-'); this.currentYear = parseInt(sy, 10); this.currentMonth = parseInt(sm, 10) - 1;
+                        this.loadSurroundingMonths(this.currentYear, this.currentMonth);
+                    } catch (e) { alert("儲存異常，請檢查網路。"); }
+                },
                 animateSwipe(dir) { this.executeSwipeAnimation(dir); },
                 executeSwipeAnimation(direction) {
                     const container = this.$refs.swipeContainer; if (!container) return;
