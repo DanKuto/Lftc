@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v47.6 (穩定最終版)</title>
+    <title>工程執行紀錄系統 v47.7 (絕對修復版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -146,7 +146,7 @@
                                         </div>
                                     </div>
                                     
-                                    <h3 class="text-xl font-black text-slate-800 tracking-wide mt-1">{{ task.mainCategory }}</h3>
+                                    <h3 class="text-xl font-black text-slate-800 tracking-wide mt-1">{{ task.mainCategory || '未命名工項' }}</h3>
                                     
                                     <div class="text-lg text-slate-700 font-black tracking-widest mt-2.5 bg-slate-100 inline-block px-3 py-1 rounded-lg">
                                         {{ formatTaskDate(task.startDate) }} ～ {{ formatTaskDate(task.endDate) }}
@@ -154,9 +154,9 @@
                                     
                                     <div class="flex flex-wrap gap-1 mt-3">
                                         <span v-for="(loc, lIdx) in getLocations(task)" :key="lIdx" class="flex items-center border border-slate-200 bg-slate-50 rounded px-2 py-0.5 text-[11px] font-bold">
-                                            <span class="text-blue-600">{{ loc.phase }}</span>
+                                            <span class="text-blue-600">{{ loc.phase || '' }}</span>
                                             <span class="text-slate-300 mx-1.5">|</span>
-                                            <span class="text-slate-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
+                                            <span class="text-slate-700">{{ loc.building || '' }} {{ (loc.floor && loc.floor !== '無') ? loc.floor : '' }}</span>
                                         </span>
                                     </div>
                                 </div>
@@ -210,7 +210,6 @@
                         
                         <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border rounded-xl shadow-sm overflow-hidden bg-slate-50 border-slate-200 opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0 mb-4">
                             <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
-                                
                                 <div class="flex justify-between items-start mb-2">
                                     <span class="text-[11px] font-bold px-2 py-0.5 rounded text-white shadow-sm" :class="getContractorColor(task.contractor)">
                                         {{ task.contractor || '未指定' }} <span v-if="task.isSuspended" class="font-normal">(已停工)</span><span v-else class="font-normal">(已完工)</span>
@@ -220,7 +219,7 @@
                                     </div>
                                 </div>
                                 
-                                <h3 class="text-xl font-black text-slate-700 tracking-wide mt-1">{{ task.mainCategory }}</h3>
+                                <h3 class="text-xl font-black text-slate-700 tracking-wide mt-1">{{ task.mainCategory || '未命名工項' }}</h3>
                                 
                                 <div class="text-lg text-slate-600 font-black tracking-widest mt-2.5 bg-slate-200 inline-block px-3 py-1 rounded-lg">
                                     {{ formatTaskDate(task.startDate) }} ～ {{ formatTaskDate(task.endDate) }}
@@ -228,9 +227,9 @@
                                 
                                 <div class="flex flex-wrap gap-1 mt-3">
                                     <span v-for="(loc, lIdx) in getLocations(task)" :key="lIdx" class="flex items-center border border-slate-300 bg-slate-100 rounded px-2 py-0.5 text-[11px] font-bold">
-                                        <span class="text-blue-600">{{ loc.phase }}</span>
+                                        <span class="text-blue-600">{{ loc.phase || '' }}</span>
                                         <span class="text-slate-400 mx-1.5">|</span>
-                                        <span class="text-slate-600">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
+                                        <span class="text-slate-600">{{ loc.building || '' }} {{ (loc.floor && loc.floor !== '無') ? loc.floor : '' }}</span>
                                     </span>
                                 </div>
                             </div>
@@ -605,14 +604,9 @@
             methods: {
                 handleScroll() {
                     const currentScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
-                    
-                    // 向下滾動超過 50px 立刻隱藏
+                    // 如果向下捲動超過 50px 立刻隱藏
                     if (currentScrollPosition > this.lastScrollPosition && currentScrollPosition > 50) {
                         this.showHeader = false;
-                    } 
-                    // 向上滾動超過 10px，或是回到頂部，顯示 Header
-                    else if (currentScrollPosition < this.lastScrollPosition - 10 || currentScrollPosition <= 10) {
-                        this.showHeader = true;
                     }
                     this.lastScrollPosition = currentScrollPosition;
                 },
@@ -628,6 +622,7 @@
                     if (this.isAtTopWhenTouchStarted && window.scrollY <= 10 && !this.showHeader) {
                         let currentY = e.touches ? e.touches[0].clientY : e.clientY;
                         let deltaY = currentY - this.mainTouchStartY;
+                        // 明顯往下拉超過 40px，顯示 Header
                         if (deltaY > 40) {
                             this.showHeader = true;
                         }
@@ -653,7 +648,7 @@
                     this.filters = { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' };
                     this.applySearch();
                 },
-                handleTouchStart(e) { this.touchStartX = e.touches[0].clientX; this.isSwiping = true; if(this.$refs.swipeContainer) this.$refs.swipeContainer.style.transition = 'none'; },
+                handleTouchStart(e) { this.touchStartX = e.touches ? e.touches[0].clientX : e.clientX; this.isSwiping = true; if(this.$refs.swipeContainer) this.$refs.swipeContainer.style.transition = 'none'; },
                 handleTouchMove(e) { if (!this.isSwiping) return; let currentX = e.touches ? e.touches[0].clientX : e.clientX; let dx = currentX - this.touchStartX; if(this.$refs.swipeContainer) this.$refs.swipeContainer.style.transform = `translateX(calc(-33.333333% + ${dx}px))`; },
                 handleTouchEnd(e) {
                     if(!this.isSwiping) return;
@@ -680,6 +675,7 @@
                         const q = query(tasksCollection, where("endDate", ">=", `${mKey}-01`), where("endDate", "<=", `${mKey}-31`));
                         const snap = await getDocs(q);
                         let data = []; snap.forEach(d => {
+                            // 安全判定
                             if(!this.recentTasks[d.id]) data.push({ id: d.id, ...d.data(), expanded: false });
                         });
                         this.tasksByMonth[mKey] = data; this.loadedMonths.push(mKey);
@@ -689,6 +685,7 @@
                     const firstDay = new Date(y, m, 1).getDay();
                     const daysInMonth = new Date(y, m + 1, 0).getDate();
                     let monthTasks = this.filteredTasks.filter(t => {
+                        if (!t.startDate || !t.endDate) return false;
                         let tStart = new Date(t.startDate); let tEnd = new Date(t.endDate);
                         return tEnd >= new Date(y, m, 1) && tStart <= new Date(y, m, daysInMonth);
                     });
@@ -773,7 +770,11 @@
                     const map = { '和億': 'bg-blue-600', '宏鎝': 'bg-orange-500', '富懋': 'bg-emerald-500', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
                     return map[c] || 'bg-slate-400';
                 },
-                getLocations(t) { return t.locations || [{phase:'P2', building:t.building, floor:t.floor}]; },
+                // 安全存取 locations
+                getLocations(t) { 
+                    if (t.locations && t.locations.length > 0) return t.locations;
+                    return [{phase: t.phase || 'P2', building: t.building || 'FAB', floor: t.floor || ''}]; 
+                },
                 changeMonth(dir) { this.currentMonth += dir; if(this.currentMonth > 11){ this.currentMonth=0; this.currentYear++; } else if(this.currentMonth < 0){ this.currentMonth=11; this.currentYear--; } this.loadSurroundingMonths(this.currentYear, this.currentMonth); },
                 async handleLogin() {
                     this.isLoggingIn = true; this.loginForm.error = '';
@@ -784,15 +785,18 @@
                 handleLogout() { signOut(auth); },
                 exportExcel() {
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
-                    let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
+                    let exportList = [...this.filteredTasks].sort((a, b) => {
+                        if (!a.startDate || !b.startDate) return 0;
+                        return a.startDate.localeCompare(b.startDate);
+                    });
                     
                     let sheet1Data = [['工項狀態', '開始日期', '結束日期', '工作天', '包商/班組', '管理職', '廠區', '大樓', '樓層', '主要工項', '施作細項', '備註', '應辦申請單', '停工原因']];
                     exportList.forEach(t => {
                         let status = t.isSuspended ? '已停工' : ((t.isCompleted || this.isPast(t.endDate)) ? '已完工' : '進行中');
                         let locs = this.getLocations(t);
-                        let phases = locs.map(l => l.phase).join('、');
-                        let buildings = locs.map(l => l.building).join('、');
-                        let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、');
+                        let phases = locs.map(l => l.phase || '').join('、');
+                        let buildings = locs.map(l => l.building || '').join('、');
+                        let floors = locs.map(l => (l.floor && l.floor !== '無') ? l.floor : '').filter(f => f).join('、');
                         sheet1Data.push([ status, t.startDate||'', t.endDate||'', t.days||1, t.contractor||'', (t.managers||[]).join('、'), phases, buildings, floors, t.mainCategory||'', (t.subItems||[]).join('、'), (t.remark || '').replace(/\n/g, ' '), (t.permits || []).join('、'), (t.suspendReason || '').replace(/\n/g, ' ') ]);
                     });
 
@@ -822,7 +826,7 @@
                         
                         tasksOnDay.forEach((t, idx) => {
                             let locs = this.getLocations(t);
-                            sheet2Data.push([ idx === 0 ? dateDisplay : '', idx === 0 ? dayDisplay : '', t.contractor || '', locs.map(l => l.phase).join('、'), locs.map(l => l.building).join('、'), locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、'), t.mainCategory || '', (t.subItems || []).join('、'), (t.remark || '').replace(/\n/g, ' '), (t.permits || []).join('、') ]);
+                            sheet2Data.push([ idx === 0 ? dateDisplay : '', idx === 0 ? dayDisplay : '', t.contractor || '', locs.map(l => l.phase || '').join('、'), locs.map(l => l.building || '').join('、'), locs.map(l => (l.floor && l.floor !== '無') ? l.floor : '').filter(f => f).join('、'), t.mainCategory || '', (t.subItems || []).join('、'), (t.remark || '').replace(/\n/g, ' '), (t.permits || []).join('、') ]);
                         });
                     });
 
@@ -857,7 +861,7 @@
                 async saveTask() {
                     if (!this.user) return alert('權限不足，請先登入。');
                     const end = this.calculateEndDate(this.newTask.startDate, this.newTask.days, this.newTask.includeSaturday, this.newTask.includeSunday);
-                    let locationString = this.newTask.locations.map(l => `${l.phase} ${l.building}${l.floor!=='無'?' '+l.floor:''}`).join(' / ');
+                    let locationString = this.newTask.locations.map(l => `${l.phase} ${l.building}${(l.floor && l.floor!=='無')?' '+l.floor:''}`).join(' / ');
                     const formattedData = { startDate: this.newTask.startDate, days: this.newTask.days, locations: JSON.parse(JSON.stringify(this.newTask.locations)), building: this.newTask.locations[0].building, floor: this.newTask.locations[0].floor, contractor: this.newTask.contractor.trim(), managers: [...this.newTask.managers.filter(m => m.trim() !== '')], includeSaturday: this.newTask.includeSaturday, includeSunday: this.newTask.includeSunday, mainCategory: this.newTask.mainCategory, remark: this.newTask.remark ? this.newTask.remark.trim() : '', subItems: [...this.newTask.subItems], permits: [...this.newTask.permits], location: locationString, endDate: end, isCompleted: this.newTask.isCompleted || false, completedDate: this.newTask.completedDate || null, isSuspended: this.newTask.isSuspended || false, suspendReason: this.newTask.suspendReason || null, suspendDate: this.newTask.suspendDate || null };
                     try { if (this.editingTaskId) await updateDoc(doc(db, 'tasks', this.editingTaskId), formattedData); else { formattedData.createdAt = serverTimestamp(); await addDoc(tasksCollection, formattedData); } this.showModal = false; let [sy, sm] = this.newTask.startDate.split('-'); this.currentYear = parseInt(sy, 10); this.currentMonth = parseInt(sm, 10) - 1; this.loadSurroundingMonths(this.currentYear, this.currentMonth); } catch (e) { alert("儲存異常，請檢查網路。"); }
                 },
@@ -875,7 +879,8 @@
                     if (this.isTaskCompleted(task)) { this.forcedVisibleTaskId = task.id; } 
                     else { const taskIndex = this.activeTasks.findIndex(t => t.id === task.id); if (taskIndex !== -1 && taskIndex >= this.visibleLimit) this.visibleLimit = taskIndex + 5; }
                     nextTick(() => { const element = document.getElementById('task-' + task.id); if (element) { const offsetPosition = element.getBoundingClientRect().top + window.pageYOffset - 120; window.scrollTo({ top: offsetPosition, behavior: 'smooth' }); element.classList.remove('highlight-flash'); void element.offsetWidth; element.classList.add('highlight-flash'); } });
-                }
+                },
+                isPast(dateStr) { return dateStr < this.todayStr; }
             }
         }).mount('#app')
     </script>
