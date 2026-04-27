@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v49.0 (展開與樣式優化版)</title>
+    <title>工程執行紀錄系統 v49.1 (排版與參數更新版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -191,12 +191,12 @@
                                     
                                     <div class="flex justify-between items-start">
                                         <div class="flex flex-col items-start">
-                                            <span class="px-2 py-1 rounded text-white text-[28px] sm:text-[30px] font-thin tracking-widest leading-none" :class="getContractorColor(task.contractor)">
+                                            <span class="px-2 py-1 rounded text-white text-[28px] sm:text-[30px] font-thin tracking-widest leading-none shadow-sm" :class="getContractorColor(task.contractor)">
                                                 {{ task.contractor || '未指定' }}
                                             </span>
                                             
                                             <div class="flex flex-wrap gap-1 mt-2.5">
-                                                <span v-for="loc in getLocations(task)" class="flex items-center border border-gray-200 bg-gray-50 rounded px-1.5 py-[2px] text-[12px] font-bold">
+                                                <span v-for="loc in getLocations(task)" class="flex items-center border border-gray-200 bg-gray-50 rounded px-1.5 py-[2px] text-[12px] font-bold shadow-sm">
                                                     <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-600'">{{ loc.phase }}</span>
                                                     <span class="text-gray-300 mx-1.5">|</span>
                                                     <span class="text-gray-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
@@ -251,13 +251,13 @@
                                     <hr class="border-gray-200">
                                     
                                     <div v-if="user" class="flex justify-between items-center gap-2 pt-3">
-                                        <button @click.stop="toggleCompleteStatus(task)" class="flex-1 bg-[#14b8a6] hover:bg-teal-500 text-white text-sm font-bold py-2 rounded transition-colors">已完工</button>
-                                        <button @click.stop="toggleSuspendStatus(task)" class="flex-1 bg-[#ef4444] hover:bg-red-500 text-white text-sm font-bold py-2 rounded transition-colors">停工</button>
+                                        <button @click.stop="toggleCompleteStatus(task)" class="flex-1 h-9 flex items-center justify-center bg-[#14b8a6] hover:bg-teal-500 text-white text-sm font-bold rounded transition-colors shadow-sm">已完工</button>
+                                        <button @click.stop="toggleSuspendStatus(task)" class="flex-1 h-9 flex items-center justify-center bg-[#ef4444] hover:bg-red-500 text-white text-sm font-bold rounded transition-colors shadow-sm">停工</button>
                                         
-                                        <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="shrink-0 w-10 h-10 flex items-center justify-center rounded bg-[#14b8a6] hover:bg-teal-500 text-white font-black text-xl transition-colors">＋</button>
+                                        <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="shrink-0 w-9 h-9 flex items-center justify-center rounded bg-[#14b8a6] hover:bg-teal-500 text-white font-black text-xl transition-colors shadow-sm">＋</button>
 
-                                        <button @click.stop="openEditModal(task)" class="flex-1 bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm font-bold py-2 rounded transition-colors">修改</button>
-                                        <button @click.stop="confirmDelete(task)" class="flex-1 bg-white border border-gray-300 text-[#ef4444] hover:bg-red-50 text-sm font-bold py-2 rounded transition-colors">刪除</button>
+                                        <button @click.stop="openEditModal(task)" class="flex-1 h-9 flex items-center justify-center bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm font-bold rounded transition-colors shadow-sm">修改</button>
+                                        <button @click.stop="confirmDelete(task)" class="flex-1 h-9 flex items-center justify-center bg-white border border-gray-300 text-[#ef4444] hover:bg-red-50 text-sm font-bold rounded transition-colors shadow-sm">刪除</button>
                                     </div>
                                 </div>
                             </div>
@@ -294,14 +294,14 @@
                                 
                                 <div class="flex justify-between items-start">
                                     <div class="flex flex-col items-start">
-                                        <span class="px-2 py-1 rounded text-white text-[28px] sm:text-[30px] font-thin tracking-widest leading-none" :class="getContractorColor(task.contractor)">
+                                        <span class="px-2 py-1 rounded text-white text-[28px] sm:text-[30px] font-thin tracking-widest leading-none shadow-sm" :class="getContractorColor(task.contractor)">
                                             {{ task.contractor || '未指定' }}
                                             <span v-if="task.isSuspended" class="text-lg font-normal ml-1">(停工)</span>
                                             <span v-else class="text-lg font-normal ml-1">(完工)</span>
                                         </span>
                                         
                                         <div class="flex flex-wrap gap-1 mt-2.5">
-                                            <span v-for="loc in getLocations(task)" class="flex items-center border border-gray-200 bg-white rounded px-1.5 py-[2px] text-[12px] font-bold text-slate-500">
+                                            <span v-for="loc in getLocations(task)" class="flex items-center border border-gray-200 bg-white rounded px-1.5 py-[2px] text-[12px] font-bold text-slate-500 shadow-sm">
                                                 <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-600'">{{ loc.phase }}</span>
                                                 <span class="text-gray-300 mx-1.5">|</span>
                                                 <span class="text-gray-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
@@ -360,12 +360,12 @@
                                 <hr class="border-gray-200">
 
                                 <div v-if="user" class="flex justify-between items-center gap-2 pt-3">
-                                    <button v-if="task.isSuspended && canToggleSuspend(task)" @click.stop="toggleSuspendStatus(task)" class="flex-1 bg-white border border-gray-300 text-gray-600 text-sm font-bold py-2 rounded transition-colors">↩️ 取消停工</button>
-                                    <button v-else-if="!task.isSuspended && canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" class="flex-1 bg-white border border-gray-300 text-gray-600 text-sm font-bold py-2 rounded transition-colors">↩️ 取消完工</button>
+                                    <button v-if="task.isSuspended && canToggleSuspend(task)" @click.stop="toggleSuspendStatus(task)" class="flex-1 h-9 flex items-center justify-center bg-white border border-gray-300 text-gray-600 text-sm font-bold rounded transition-colors shadow-sm">↩️ 取消停工</button>
+                                    <button v-else-if="!task.isSuspended && canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" class="flex-1 h-9 flex items-center justify-center bg-white border border-gray-300 text-gray-600 text-sm font-bold rounded transition-colors shadow-sm">↩️ 取消完工</button>
                                     
-                                    <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="shrink-0 w-10 h-10 flex items-center justify-center rounded bg-[#14b8a6] hover:bg-teal-500 text-white font-black text-xl transition-colors">＋</button>
+                                    <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="shrink-0 w-9 h-9 flex items-center justify-center rounded bg-[#14b8a6] hover:bg-teal-500 text-white font-black text-xl transition-colors shadow-sm">＋</button>
 
-                                    <button @click.stop="confirmDelete(task)" class="flex-1 bg-white border border-gray-300 text-[#ef4444] text-sm font-bold py-2 rounded transition-colors">刪除</button>
+                                    <button @click.stop="confirmDelete(task)" class="flex-1 h-9 flex items-center justify-center bg-white border border-gray-300 text-[#ef4444] text-sm font-bold rounded transition-colors shadow-sm">刪除</button>
                                 </div>
                             </div>
                         </div>
@@ -554,7 +554,7 @@
             buildings: ['FAB', 'CUP', 'OFFICE', 'SUP', '倉庫'],
             floors: ['LB1', 'LB2', 'L10', 'L20', 'L30', 'L40', 'L50', 'L60', 'L70', 'LR1', 'LR2'],
             contractors: ['領鋒', '和億', '宏鎝', '富懋', '明辰', '明凱', '寰霈', '金鐠鑼'],
-            managers: ['N/A', '睿智', '昱凱', '國展', '旭承', '香雲', '玉琳', '怡霈', '承憲', '庭綺', '語宸'],
+            managers: ['N/A', '睿智', '昱凱', '國展', '旭承', '香雲', '玉琳', '怡霈', '承憲', '庭綺', '語宸', '翊涵'],
             categories: {
                 '天線安裝': ['光纖管線', '導波管線', '配管', '分歧器', '天線'],
                 '機櫃安裝': ['機櫃定位', '機櫃下線槽安裝', '設備安裝'],
@@ -565,7 +565,7 @@
                 '吊掛作業': ['器具進場', '設備起降'], 
                 '測PIM': ['查詢修正', '負載測試', 'PIM量測', '報告產出'],
                 '訊號改善': ['訊號查修', '設備維修'],
-                '設備驗收': ['設備驗收', '疑點拍攝']
+                '設備驗收': ['設備驗收', '設備拍攝']
             }
         };
 
@@ -626,7 +626,7 @@
                     if (!this.newTask.mainCategory) return [];
                     if (this.newTask.mainCategory === '器材備料') return []; 
                     if (this.newTask.mainCategory === '物料運送') return ['車輛進廠放行單', '物料進出放行單']; 
-                    return ['一般施工單', '變電站申請', '離架申請', '天花板申請']; 
+                    return ['一般施工單', '變電站申請', '離架作業', '天花板申請']; 
                 },
                 threeMonthsGrids() {
                     let prevY = this.currentYear, prevM = this.currentMonth - 1;
@@ -998,7 +998,7 @@
                 },
                 isTaskCompleted(task) { return task.isCompleted || task.isSuspended || task.endDate < this.todayStr; },
                 getContractorColor(contractor) {
-                    const fixedMap = { '和億': 'bg-red-600', '富懋': 'bg-[#059669]', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
+                    const fixedMap = { '和億': 'bg-orange-500', '富懋': 'bg-[#059669]', '明辰': 'bg-rose-500', '明凱': 'bg-blue-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
                     let name = (contractor || '').trim(); return fixedMap[name] || 'bg-slate-400';
                 },
                 getLocations(task) { return task.locations || [{ phase: 'P2', building: task.building, floor: task.floor }]; },
@@ -1133,16 +1133,13 @@
                     else if (this.currentMonth < 0) { this.currentMonth = 11; this.currentYear--; }
                     this.loadSurroundingMonths(this.currentYear, this.currentMonth);
                 },
-                // 修復並升級：點擊行事曆直接展開並滑動
                 scrollToTask(task) {
                     if (this._isSwiping) return; 
                     
-                    // 1. 在 flat 清單中找到目標並展開
                     const targetTask = this.allTasksFlat.find(t => t.id === task.id);
                     if (targetTask) {
                         targetTask.expanded = true;
                         
-                        // 2. 同步更新源頭資料以觸發 Vue 的響應式更新
                         let [y, m] = task.startDate.split('-');
                         let monthKey = `${y}-${m}`;
                         if (this.recentTasks[task.id]) {
@@ -1157,7 +1154,6 @@
                         }
                     }
 
-                    // 3. 確保如果目標在未載入範圍，將顯示範圍擴大
                     if (this.isTaskCompleted(task)) { 
                         this.forcedVisibleTaskId = task.id; 
                     } else {
@@ -1165,7 +1161,6 @@
                         if (taskIndex !== -1 && taskIndex >= this.visibleLimit) this.visibleLimit = taskIndex + 5;
                     }
 
-                    // 4. 等待 DOM 更新完成後執行滑動與閃爍動畫
                     nextTick(() => {
                         const el = document.getElementById('task-' + task.id);
                         if (el) {
