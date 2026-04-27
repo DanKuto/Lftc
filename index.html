@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v47.0 (搜尋優化版)</title>
+    <title>工程執行紀錄系統 v47.1 (搜尋優化版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -149,12 +149,12 @@
                         </div>
                         
                         <div class="flex gap-2 pt-2 border-t border-gray-100">
-                            <button @click="resetFilters" class="w-1/4 bg-gray-100 text-gray-600 py-2 rounded-lg font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all">重置</button>
-                            <button @click="applyFilters" class="w-2/4 bg-blue-600 text-white py-2 rounded-lg font-bold text-xs hover:bg-blue-700 shadow-sm shadow-blue-200 flex items-center justify-center active:scale-95 transition-all">
+                            <button @click="resetFilters" class="w-1/5 shrink-0 bg-gray-100 text-gray-600 py-2 rounded-lg font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all">重置</button>
+                            <button @click="applyFilters" class="w-2/5 bg-blue-600 text-white py-2 rounded-lg font-bold text-xs hover:bg-blue-700 shadow-sm shadow-blue-200 flex items-center justify-center active:scale-95 transition-all">
                                 🔍 執行搜尋
                             </button>
-                            <button @click="exportExcel" class="w-1/4 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
-                                匯出
+                            <button @click="exportExcel" class="w-2/5 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
+                                匯出EXCEL
                             </button>
                         </div>
                     </div>
@@ -371,12 +371,16 @@
                     <h2 class="text-xl font-black text-slate-800">{{ editingTaskId ? '✏️ 修改排程' : '📅 排定新工項' }}</h2>
                     <button @click="showModal = false" class="text-gray-400 bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center text-xl font-bold hover:bg-gray-200 hover:text-gray-600 transition-colors">&times;</button>
                 </div>
+                
                 <form @submit.prevent="saveTask" class="space-y-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">開始日期</label>
                         <input v-model="newTask.startDate" type="date" required class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-base mb-2 focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
-                    <button type="submit" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg mt-6">儲存</button>
+                     <button type="submit" class="w-full text-white font-black py-4 rounded-2xl shadow-lg mt-6 active:scale-95 transition-all flex justify-center items-center"
+                             :class="editingTaskId ? 'bg-amber-500 shadow-amber-200 hover:bg-amber-600' : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'">
+                        {{ editingTaskId ? '儲存修改 (自動同步雲端)' : '建立排程 (自動同步雲端)' }}
+                    </button>
                 </form>
             </div>
         </div>
@@ -451,9 +455,7 @@
                     historyFetchCursor: { year: today.getFullYear(), month: today.getMonth() }, 
                     forcedVisibleTaskId: null,
                     showFilters: false,
-                    // 使用者輸入的暫存條件
                     filters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
-                    // 按下搜尋按鈕後，實際生效的過濾基準
                     activeFilters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
                     newTask: {
                         startDate: todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
@@ -497,7 +499,6 @@
                            f.contractor !== '' || f.manager !== '' || 
                            f.phase !== '' || f.status !== 'all';
                 },
-                // 過濾邏輯改為監聽 activeFilters
                 filteredTasks() {
                     return this.allTasksFlat.filter(t => {
                         const af = this.activeFilters;
@@ -583,17 +584,13 @@
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
             },
             methods: {
-                // 搜尋邏輯關鍵：按下後同步快照
                 applyFilters() {
                     this.activeFilters = JSON.parse(JSON.stringify(this.filters));
-                    // 執行搜尋後回到頂部方便看結果，並收起篩選器
-                    // this.showFilters = false; 
                 },
                 resetFilters() { 
                     this.filters = { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' }; 
                     this.applyFilters();
                 },
-
                 handleScroll() {
                     const currentScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
                     if (currentScrollPosition <= 5) return;
@@ -682,7 +679,6 @@
                     }
                     return days;
                 },
-                // 月曆滑動與 Firebase 載入邏輯同原版 ...
                 async loadSurroundingMonths(year, month) {
                     let prevY = year, prevM = month - 1;
                     if (prevM < 0) { prevM = 11; prevY--; }
@@ -708,7 +704,163 @@
                         this.loadedMonths.push(monthKey);
                     } finally { this.isLoadingHistory = false; }
                 },
-                // 其餘 Utility 與 Firebase 操作函數同原版
+                exportExcel() {
+                    if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
+                    let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
+                    
+                    let sheet1Data = [
+                        ['工項狀態', '開始日期', '結束日期', '工作天', '包商/班組', '管理職', '廠區', '大樓', '樓層', '主要工項', '施作細項', '備註', '應辦申請單', '停工原因']
+                    ];
+                    
+                    exportList.forEach(t => {
+                        let status = t.isSuspended ? '已停工' : ((t.isCompleted || this.isPast(t.endDate)) ? '已完工' : '進行中');
+                        let locs = this.getLocations(t);
+                        let phases = locs.map(l => l.phase).join('、');
+                        let buildings = locs.map(l => l.building).join('、');
+                        let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、');
+                        let remark = (t.remark || '').replace(/\n/g, ' ');
+                        let permits = (t.permits || []).join('、');
+                        let suspendReason = (t.suspendReason || '').replace(/\n/g, ' ');
+                        
+                        sheet1Data.push([
+                            status, t.startDate||'', t.endDate||'', t.days||1, t.contractor||'', 
+                            (t.managers||[]).join('、'), phases, buildings, floors, 
+                            t.mainCategory||'', (t.subItems||[]).join('、'), remark, permits, suspendReason
+                        ]);
+                    });
+
+                    let sheet2Data = [
+                        ['日期', '星期', '包商/班組', '廠區', '大樓', '樓層', '主要工項', '施作細項', '備註', '應辦申請單']
+                    ];
+                    
+                    let dailyMap = {};
+                    exportList.forEach(task => {
+                        if (!task.startDate || !task.endDate) return;
+                        let tStart = new Date(task.startDate);
+                        let tEnd = new Date(task.endDate);
+                        let curDate = new Date(tStart);
+                        
+                        while (curDate <= tEnd) {
+                            let dayOfWeek = curDate.getDay();
+                            let isWorkDay = true;
+                            if (dayOfWeek === 6 && !task.includeSaturday) isWorkDay = false;
+                            if (dayOfWeek === 0 && !task.includeSunday) isWorkDay = false;
+                            
+                            if (isWorkDay) {
+                                let y = curDate.getFullYear();
+                                let m = String(curDate.getMonth() + 1).padStart(2, '0');
+                                let d = String(curDate.getDate()).padStart(2, '0');
+                                let dateStr = `${y}-${m}-${d}`;
+                                
+                                if (!dailyMap[dateStr]) dailyMap[dateStr] = [];
+                                dailyMap[dateStr].push(task);
+                            }
+                            curDate.setDate(curDate.getDate() + 1);
+                        }
+                    });
+                    
+                    let allDates = Object.keys(dailyMap).sort();
+                    const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+                    
+                    allDates.forEach(dateStr => {
+                        let tasksOnDay = dailyMap[dateStr];
+                        tasksOnDay.sort((a, b) => {
+                            let cA = a.contractor || '';
+                            let cB = b.contractor || '';
+                            return cA.localeCompare(cB);
+                        });
+                        
+                        let dObj = new Date(dateStr);
+                        let dateDisplay = `${dObj.getMonth() + 1}月${dObj.getDate()}日`;
+                        let dayDisplay = dayNames[dObj.getDay()];
+                        
+                        tasksOnDay.forEach((t, idx) => {
+                            let locs = this.getLocations(t);
+                            let phases = locs.map(l => l.phase).join('、');
+                            let buildings = locs.map(l => l.building).join('、');
+                            let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、');
+                            let remark = (t.remark || '').replace(/\n/g, ' ');
+                            
+                            sheet2Data.push([
+                                idx === 0 ? dateDisplay : '',
+                                idx === 0 ? dayDisplay : '',
+                                t.contractor || '',
+                                phases,
+                                buildings,
+                                floors,
+                                t.mainCategory || '',
+                                (t.subItems || []).join('、'),
+                                remark,
+                                (t.permits || []).join('、')
+                            ]);
+                        });
+                    });
+
+                    const wb = XLSX.utils.book_new();
+                    const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+                    const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+
+                    const headerStyle = {
+                        font: { bold: true, color: { rgb: "000000" } },
+                        fill: { fgColor: { rgb: "D9D9D9" } },
+                        alignment: { horizontal: "left", vertical: "center" },
+                        border: {
+                            top: { style: "thin", color: { rgb: "BFBFBF" } }, bottom: { style: "thin", color: { rgb: "BFBFBF" } },
+                            left: { style: "thin", color: { rgb: "BFBFBF" } }, right: { style: "thin", color: { rgb: "BFBFBF" } }
+                        }
+                    };
+
+                    const dateColStyle = {
+                        font: { bold: true, color: { rgb: "000000" } },
+                        fill: { fgColor: { rgb: "F2F2F2" } },
+                        alignment: { horizontal: "left", vertical: "top" },
+                        border: {
+                            top: { style: "thin", color: { rgb: "BFBFBF" } }, bottom: { style: "thin", color: { rgb: "BFBFBF" } },
+                            left: { style: "thin", color: { rgb: "BFBFBF" } }, right: { style: "thin", color: { rgb: "BFBFBF" } }
+                        }
+                    };
+
+                    const dataStyle = {
+                        font: { color: { rgb: "000000" } },
+                        alignment: { horizontal: "left", vertical: "top", wrapText: true },
+                        border: {
+                            top: { style: "thin", color: { rgb: "BFBFBF" } }, bottom: { style: "thin", color: { rgb: "BFBFBF" } },
+                            left: { style: "thin", color: { rgb: "BFBFBF" } }, right: { style: "thin", color: { rgb: "BFBFBF" } }
+                        }
+                    };
+
+                    let range1 = XLSX.utils.decode_range(ws1['!ref']);
+                    for (let R = range1.s.r; R <= range1.e.r; ++R) {
+                        for (let C = range1.s.c; C <= range1.e.c; ++C) {
+                            let cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+                            if (!ws1[cellRef]) ws1[cellRef] = { t: 's', v: '' };
+                            ws1[cellRef].s = (R === 0) ? headerStyle : dataStyle;
+                        }
+                    }
+                    ws1['!cols'] = [{wch:10},{wch:12},{wch:12},{wch:8},{wch:12},{wch:15},{wch:10},{wch:10},{wch:10},{wch:15},{wch:25},{wch:30},{wch:20},{wch:15}];
+
+                    let range2 = XLSX.utils.decode_range(ws2['!ref']);
+                    for (let R = range2.s.r; R <= range2.e.r; ++R) {
+                        for (let C = range2.s.c; C <= range2.e.c; ++C) {
+                            let cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+                            if (!ws2[cellRef]) ws2[cellRef] = { t: 's', v: '' };
+                            
+                            if (R === 0) {
+                                ws2[cellRef].s = headerStyle;
+                            } else if (C === 0 || C === 1) {
+                                ws2[cellRef].s = dateColStyle;
+                            } else {
+                                ws2[cellRef].s = dataStyle;
+                            }
+                        }
+                    }
+                    ws2['!cols'] = [{wch:12},{wch:6},{wch:15},{wch:8},{wch:8},{wch:8},{wch:15},{wch:25},{wch:35},{wch:20}];
+
+                    XLSX.utils.book_append_sheet(wb, ws1, "原始清單");
+                    XLSX.utils.book_append_sheet(wb, ws2, "每日排程");
+                    
+                    XLSX.writeFile(wb, `工程紀錄匯出_${this.todayStr}.xlsx`);
+                },
                 isTaskCompleted(task) { return task.isCompleted || task.isSuspended || task.endDate < this.todayStr; },
                 getContractorColor(contractor) {
                     const fixedMap = { '和億': 'bg-blue-600', '富懋': 'bg-[#10b981]', '明辰': 'bg-rose-500', '明凱': 'bg-amber-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
@@ -733,7 +885,7 @@
                     if (next && !reason) return;
                     await updateDoc(doc(db, 'tasks', task.id), { isSuspended: next, suspendReason: reason, suspendDate: next ? this.todayStr : null, isCompleted: false });
                 },
-                async confirmDelete(task) { if (this.user && confirm("刪？")) await deleteDoc(doc(db, 'tasks', task.id)); },
+                async confirmDelete(task) { if (this.user && confirm("刪除？")) await deleteDoc(doc(db, 'tasks', task.id)); },
                 async saveTask() { /* ... 同原版儲存邏輯 ... */ },
                 animateSwipe(dir) { this.executeSwipeAnimation(dir); },
                 executeSwipeAnimation(direction) {
@@ -758,7 +910,8 @@
                         window.scrollTo({ top, behavior: 'smooth' });
                     }
                 },
-                isToday(s) { return s === this.todayStr; }
+                isToday(s) { return s === this.todayStr; },
+                isPast(dateStr) { return dateStr < this.todayStr; }
             }
         }).mount('#app')
     </script>
