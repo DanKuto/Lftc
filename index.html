@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v47.3 (白屏修復與版面完美版)</title>
+    <title>工程執行紀錄系統 v47.4 (最終修復版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -203,7 +203,7 @@
                                     </div>
                                     
                                     <div class="flex flex-wrap gap-1 mt-3">
-                                        <span v-for="loc in getLocations(task)" class="flex items-center border border-slate-200 bg-slate-50 rounded px-2 py-0.5 text-[11px] font-bold">
+                                        <span v-for="(loc, lIdx) in getLocations(task)" :key="lIdx" class="flex items-center border border-slate-200 bg-slate-50 rounded px-2 py-0.5 text-[11px] font-bold">
                                             <span class="text-blue-600">{{ loc.phase }}</span>
                                             <span class="text-slate-300 mx-1.5">|</span>
                                             <span class="text-slate-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
@@ -213,7 +213,7 @@
                                 
                                 <div v-if="task.expanded" class="px-4 pb-4">
                                     <div class="flex flex-wrap gap-2 mb-3" v-if="task.subItems && task.subItems.length">
-                                        <span v-for="sub in task.subItems" class="bg-white border border-slate-200 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
+                                        <span v-for="(sub, sIdx) in task.subItems" :key="sIdx" class="bg-white border border-slate-200 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
                                     </div>
                                     
                                     <hr class="border-slate-200 my-4">
@@ -280,7 +280,7 @@
                                 </div>
                                 
                                 <div class="flex flex-wrap gap-1 mt-3">
-                                    <span v-for="loc in getLocations(task)" class="flex items-center border border-slate-300 bg-slate-100 rounded px-2 py-0.5 text-[11px] font-bold">
+                                    <span v-for="(loc, lIdx) in getLocations(task)" :key="lIdx" class="flex items-center border border-slate-300 bg-slate-100 rounded px-2 py-0.5 text-[11px] font-bold">
                                         <span class="text-blue-600">{{ loc.phase }}</span>
                                         <span class="text-slate-400 mx-1.5">|</span>
                                         <span class="text-slate-600">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
@@ -301,7 +301,7 @@
                                 
                                 <hr class="border-slate-200 my-4">
                                 <div class="flex flex-wrap gap-2 mb-4" v-if="task.subItems && task.subItems.length">
-                                    <span v-for="sub in task.subItems" class="bg-slate-200 border border-slate-300 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
+                                    <span v-for="(sub, sIdx) in task.subItems" :key="sIdx" class="bg-slate-200 border border-slate-300 text-slate-600 text-[11px] px-2.5 py-1 rounded">{{ sub }}</span>
                                 </div>
 
                                 <div v-if="user" class="flex justify-between items-center mt-2">
@@ -328,7 +328,7 @@
             </div>
         </main>
 
-        <button v-if="user" @click="openNewModal" class="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-[0_10px_25px_-5px_rgba(37,99,235,0.5)] flex items-center justify-center text-3xl z-40 hover:bg-blue-700 hover:scale-105 transition-all"> + </button>
+        <button v-if="user" @click="openNewModal" class="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-xl flex items-center justify-center text-3xl z-40 hover:bg-blue-700 hover:scale-105 transition-all">+</button>
 
         <div v-if="showLoginModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
@@ -446,7 +446,7 @@
                     <div v-if="newTask.mainCategory" class="bg-amber-50/30 p-3 rounded-xl border border-amber-100">
                         <label class="block text-xs font-bold text-amber-700 mb-2">施作細項</label>
                         <div class="grid grid-cols-2 gap-2 mb-3">
-                            <label v-for="sub in config.categories[newTask.mainCategory]" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
+                            <label v-for="(sub, sIdx) in config.categories[newTask.mainCategory]" :key="sIdx" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
                                 <input type="checkbox" :value="sub" v-model="newTask.subItems" class="mr-2 w-4 h-4 rounded text-amber-600 focus:ring-amber-500"> {{ sub }}
                             </label>
                             <span v-if="config.categories[newTask.mainCategory].length === 0" class="text-xs text-amber-500">無細項</span>
@@ -455,7 +455,7 @@
                         <div v-if="availablePermits.length > 0" class="pt-3 border-t border-amber-200/50">
                             <label class="block text-xs font-bold text-amber-700 mb-2">應辦申請單 (請勾選)</label>
                             <div class="grid grid-cols-2 gap-2">
-                                <label v-for="permit in availablePermits" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
+                                <label v-for="(permit, pIdx) in availablePermits" :key="pIdx" class="flex items-center text-xs p-2 bg-white rounded-lg border border-amber-50 shadow-sm cursor-pointer hover:bg-amber-50">
                                     <input type="checkbox" :value="permit" v-model="newTask.permits" class="mr-2 w-4 h-4 rounded text-amber-600 focus:ring-amber-500"> {{ permit }}
                                 </label>
                             </div>
@@ -520,13 +520,13 @@
                     showLoginModal: false, 
                     showModal: false, 
                     editingTaskId: null,
-                    currentYear: today.getFullYear(), 
+                    currentYear: y, 
                     currentMonth: today.getMonth(), 
-                    todayStr: todayStr,
+                    todayStr: todayStr, // <--- 修復白屏的關鍵：補回這行宣告
                     sortBy: 'time', 
                     visibleLimit: 20, 
                     historyVisibleLimit: 0, 
-                    historyFetchCursor: { year: today.getFullYear(), month: today.getMonth() },
+                    historyFetchCursor: { year: y, month: today.getMonth() },
                     forcedVisibleTaskId: null, 
                     showFilters: false,
                     filters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
