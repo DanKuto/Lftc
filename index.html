@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v50.2 (置中日期分隔版)</title>
+    <title>工程執行紀錄系統 v50.3 (極簡化視覺版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -52,6 +52,7 @@
               :class="showHeader ? 'pt-[88px]' : 'pt-4'" @scroll="handleScroll">
             
             <div class="min-h-[calc(100vh-20px)] flex flex-col px-4 pb-2 relative z-10 bg-gray-50">
+                
                 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3 relative flex-shrink-0 flex flex-col z-20">
                     <div v-if="isLoadingHistory" class="absolute top-2 right-2 flex items-center justify-center bg-white/90 backdrop-blur rounded-full px-2 py-1 text-[9px] font-bold text-blue-500 shadow border border-blue-100 z-30">
                         <span class="animate-spin mr-1">🔄</span> 載入資料...
@@ -105,54 +106,59 @@
                 
                 <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div class="bg-slate-50 p-3 flex justify-between items-center cursor-pointer border-b border-gray-100 hover:bg-slate-100 transition-colors" @click="showFilters = !showFilters">
-                        <div class="font-bold text-slate-700 text-xs flex items-center">
-                            <span class="mr-2 text-sm">🔍</span> 搜尋與篩選
-                            <span v-if="hasActiveFilters" class="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-black">已套用</span>
+                        <div class="font-light text-gray-700 text-sm flex items-center">
+                            搜尋與篩選
+                            <span v-if="hasActiveFilters" class="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-light">已套用</span>
                         </div>
-                        <span class="text-slate-400 text-xs font-bold">{{ showFilters ? '▲ 收起' : '▼ 展開' }}</span>
+                        <span class="text-gray-500 text-xs font-light">{{ showFilters ? '▲ 收起' : '▼ 展開' }}</span>
                     </div>
                     <div v-show="showFilters" class="p-3 space-y-3">
-                        <input type="text" v-model="filters.keyword" @keyup.enter="applyFilters" placeholder="輸入關鍵字後點擊搜尋..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="text" v-model="filters.keyword" @keyup.enter="applyFilters" placeholder="輸入關鍵字後點擊搜尋..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500 font-light text-gray-700">
                         
                         <div class="grid grid-cols-2 gap-2 text-xs">
-                            <select v-model="filters.contractor" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <select v-model="filters.contractor" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-light text-gray-700">
                                 <option value="">所有包商</option>
                                 <option v-for="c in config.contractors" :value="c">{{ c }}</option>
                             </select>
-                            <select v-model="filters.manager" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <select v-model="filters.manager" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-light text-gray-700">
                                 <option value="">所有管理職</option>
                                 <option v-for="m in config.managers" :value="m">{{ m }}</option>
                             </select>
-                            <select v-model="filters.phase" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <select v-model="filters.phase" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-light text-gray-700">
                                 <option value="">所有廠區 (P1/P2)</option>
                                 <option value="P1">P1</option>
                                 <option value="P2">P2</option>
                             </select>
-                            <select v-model="filters.status" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <select v-model="filters.status" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-light text-gray-700">
                                 <option value="all">所有狀態</option>
                                 <option value="active">進行中</option>
                                 <option value="completed">已完工 / 已停工</option>
                             </select>
                             
                             <div class="col-span-2 bg-gray-50 border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 p-2 flex flex-col gap-1.5">
-                                <div class="text-gray-500 font-bold text-xs flex justify-between items-center">
-                                    <span>📅 篩選期間</span>
-                                    <button v-if="filters.startDate || filters.endDate" @click="filters.startDate=''; filters.endDate=''" class="text-gray-400 hover:text-red-500 font-black px-1" title="清除日期">✖ 清除</button>
+                                <div class="text-gray-500 font-light text-xs flex justify-between items-center">
+                                    <span class="flex items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 mr-1 text-gray-400">
+                                          <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                                        </svg>
+                                        篩選期間
+                                    </span>
+                                    <button v-if="filters.startDate || filters.endDate" @click="filters.startDate=''; filters.endDate=''" class="text-gray-400 hover:text-red-500 font-light px-1" title="清除日期">✕ 清除</button>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <input type="date" v-model="filters.startDate" class="w-full bg-white border border-gray-200 rounded p-1.5 focus:outline-none text-gray-700 text-[11px]">
-                                    <span class="text-gray-400 font-black text-[10px]">至</span>
-                                    <input type="date" v-model="filters.endDate" class="w-full bg-white border border-gray-200 rounded p-1.5 focus:outline-none text-gray-700 text-[11px]">
+                                    <input type="date" v-model="filters.startDate" class="w-full bg-white border border-gray-200 rounded p-1.5 focus:outline-none text-gray-700 text-[11px] font-light">
+                                    <span class="text-gray-400 font-light text-[10px]">至</span>
+                                    <input type="date" v-model="filters.endDate" class="w-full bg-white border border-gray-200 rounded p-1.5 focus:outline-none text-gray-700 text-[11px] font-light">
                                 </div>
                             </div>
                         </div>
                         
                         <div class="flex gap-2 pt-2 border-t border-gray-100">
-                            <button @click="resetFilters" class="w-1/5 shrink-0 bg-gray-100 text-gray-600 py-2 rounded-lg font-bold text-xs hover:bg-gray-200 active:scale-95 transition-all">重置</button>
-                            <button @click="applyFilters" class="w-2/5 bg-blue-600 text-white py-2 rounded-lg font-bold text-xs hover:bg-blue-700 shadow-sm shadow-blue-200 flex items-center justify-center active:scale-95 transition-all">
+                            <button @click="resetFilters" class="w-1/5 shrink-0 bg-gray-100 text-gray-600 py-2 rounded-lg font-light text-xs hover:bg-gray-200 active:scale-95 transition-all">重置</button>
+                            <button @click="applyFilters" class="w-2/5 bg-blue-600 text-white py-2 rounded-lg font-light text-xs hover:bg-blue-700 shadow-sm shadow-blue-200 flex items-center justify-center active:scale-95 transition-all">
                                 執行搜尋
                             </button>
-                            <button @click="exportExcel" class="w-2/5 bg-emerald-500 text-white py-2 rounded-lg font-bold text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
+                            <button @click="exportExcel" class="w-2/5 bg-emerald-500 text-white py-2 rounded-lg font-light text-xs hover:bg-emerald-600 shadow-sm shadow-emerald-200 flex items-center justify-center active:scale-95 transition-all">
                                 匯出EXCEL
                             </button>
                         </div>
@@ -188,7 +194,7 @@
                             <div v-if="sortBy === 'time' && (index === 0 || task.startDate !== visibleActiveTasks[index-1].startDate)" 
                                  class="flex items-center pt-4 pb-1">
                                 <div class="flex-grow border-b-2 border-slate-200 rounded-full"></div>
-                                <span class="text-slate-700 font-light text-[16px] tracking-widest mx-4">
+                                <span class="text-gray-400 font-light text-[16px] tracking-widest mx-4">
                                     {{ getFullDateString(task.startDate) }}
                                 </span>
                                 <div class="flex-grow border-b-2 border-slate-200 rounded-full"></div>
@@ -199,12 +205,12 @@
                                 <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
                                     
                                     <div class="flex justify-between items-start">
-                                        <div class="inline-flex flex-col items-stretch gap-1.5">
+                                        <div class="inline-flex flex-col items-start gap-1">
                                             <div class="px-2 py-1.5 rounded text-white text-[14px] font-normal tracking-wide leading-none shadow-sm flex items-center justify-center text-center" :class="getContractorColor(task.contractor)">
                                                 {{ task.contractor || '未指定' }}
                                             </div>
                                             
-                                            <div v-for="loc in getLocations(task)" class="flex items-center justify-center border border-gray-200 bg-gray-50 rounded px-2 py-1.5 text-[14px] font-light shadow-sm whitespace-nowrap">
+                                            <div v-for="loc in getLocations(task)" class="flex items-center border-b border-gray-200 pb-0.5 mt-0.5 text-[14px] font-light whitespace-nowrap w-max px-1">
                                                 <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-600'">{{ loc.phase }}</span>
                                                 <span class="text-gray-300 mx-1.5">|</span>
                                                 <span class="text-gray-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
@@ -292,14 +298,14 @@
                             
                             <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
                                 <div class="flex justify-between items-start">
-                                    <div class="inline-flex flex-col items-stretch gap-1.5">
+                                    <div class="inline-flex flex-col items-start gap-1">
                                         <div class="px-2 py-1.5 rounded text-white text-[14px] font-normal tracking-wide leading-none shadow-sm flex justify-center items-center" :class="getContractorColor(task.contractor)">
                                             {{ task.contractor || '未指定' }}
                                             <span v-if="task.isSuspended" class="text-[12px] font-normal ml-1">(停工)</span>
                                             <span v-else class="text-[12px] font-normal ml-1">(完工)</span>
                                         </div>
                                         
-                                        <div v-for="loc in getLocations(task)" class="flex items-center justify-center border border-gray-200 bg-gray-50 rounded px-2 py-1.5 text-[14px] font-light shadow-sm whitespace-nowrap">
+                                        <div v-for="loc in getLocations(task)" class="flex items-center border-b border-gray-200 pb-0.5 mt-0.5 text-[14px] font-light whitespace-nowrap w-max px-1">
                                             <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-600'">{{ loc.phase }}</span>
                                             <span class="text-gray-300 mx-1.5">|</span>
                                             <span class="text-gray-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
