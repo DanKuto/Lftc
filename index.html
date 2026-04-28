@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v50.3 (極簡化視覺版)</title>
+    <title>工程執行紀錄系統 v50.4 (完美排版對齊版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -204,37 +204,37 @@
                                 
                                 <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
                                     
-                                    <div class="flex justify-between items-start">
-                                        <div class="inline-flex flex-col items-start gap-1">
-                                            <div class="px-2 py-1.5 rounded text-white text-[14px] font-normal tracking-wide leading-none shadow-sm flex items-center justify-center text-center" :class="getContractorColor(task.contractor)">
+                                    <div class="flex justify-between">
+                                        <div class="flex flex-col items-stretch w-max">
+                                            <div class="py-1 rounded text-white text-[16px] sm:text-[18px] font-normal tracking-wider leading-none shadow-sm text-center" :class="getContractorColor(task.contractor)">
                                                 {{ task.contractor || '未指定' }}
                                             </div>
                                             
-                                            <div v-for="loc in getLocations(task)" class="flex items-center border-b border-gray-200 pb-0.5 mt-0.5 text-[14px] font-light whitespace-nowrap w-max px-1">
+                                            <div v-for="loc in getLocations(task)" class="flex items-center border-b border-gray-200 pb-1 mt-2 text-[14px] font-light">
                                                 <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-600'">{{ loc.phase }}</span>
                                                 <span class="text-gray-300 mx-1.5">|</span>
                                                 <span class="text-gray-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
                                             </div>
+                                            
+                                            <h3 class="text-[26px] sm:text-[28px] font-normal text-gray-800 tracking-wide leading-none mt-3">{{ task.mainCategory }}</h3>
                                         </div>
                                         
-                                        <div class="flex flex-col items-end shrink-0 ml-2">
-                                            <div class="py-1 text-[28px] sm:text-[30px] font-thin text-gray-800 tracking-widest leading-none text-right">
-                                                {{ formatDateWithDay(task.startDate) }}
+                                        <div class="flex flex-col justify-between items-end ml-4">
+                                            <div class="flex flex-col items-end shrink-0">
+                                                <div class="text-[28px] sm:text-[30px] font-thin text-gray-700 tracking-widest leading-none text-right">
+                                                    {{ formatDateWithDay(task.startDate) }}
+                                                </div>
+                                                <div v-if="task.startDate !== task.endDate" class="text-[28px] sm:text-[30px] font-thin text-gray-700 tracking-widest leading-none mt-1.5 text-right">
+                                                    {{ formatDateWithDay(task.endDate) }}
+                                                </div>
                                             </div>
-                                            <div v-if="task.startDate !== task.endDate" class="py-1 text-[28px] sm:text-[30px] font-thin text-gray-800 tracking-widest leading-none mt-1 text-right">
-                                                {{ formatDateWithDay(task.endDate) }}
+                                            
+                                            <div class="text-[16px] text-gray-700 font-light flex items-center leading-none text-right mt-4">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-[16px] w-[16px] mr-1.5 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                                                  <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                                                </svg>
+                                                {{ task.managers && task.managers.length ? task.managers.join(' ') : '未指定' }}
                                             </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex justify-between items-end mt-5">
-                                        <h3 class="text-[26px] sm:text-[28px] font-black text-gray-800 tracking-wide leading-none">{{ task.mainCategory }}</h3>
-                                        
-                                        <div class="text-[16px] text-gray-700 font-light flex items-center leading-none text-right">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-[16px] w-[16px] mr-1.5 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
-                                              <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
-                                            </svg>
-                                            {{ task.managers && task.managers.length ? task.managers.join(' ') : '未指定' }}
                                         </div>
                                     </div>
                                 </div>
@@ -297,39 +297,40 @@
                         <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border border-gray-200 rounded-lg shadow-sm bg-gray-50 overflow-hidden opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0 transition-all">
                             
                             <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
-                                <div class="flex justify-between items-start">
-                                    <div class="inline-flex flex-col items-start gap-1">
-                                        <div class="px-2 py-1.5 rounded text-white text-[14px] font-normal tracking-wide leading-none shadow-sm flex justify-center items-center" :class="getContractorColor(task.contractor)">
+                                <div class="flex justify-between">
+                                    
+                                    <div class="flex flex-col items-stretch w-max">
+                                        <div class="py-1 rounded text-white text-[16px] sm:text-[18px] font-normal tracking-wider leading-none shadow-sm flex justify-center items-center" :class="getContractorColor(task.contractor)">
                                             {{ task.contractor || '未指定' }}
                                             <span v-if="task.isSuspended" class="text-[12px] font-normal ml-1">(停工)</span>
                                             <span v-else class="text-[12px] font-normal ml-1">(完工)</span>
                                         </div>
                                         
-                                        <div v-for="loc in getLocations(task)" class="flex items-center border-b border-gray-200 pb-0.5 mt-0.5 text-[14px] font-light whitespace-nowrap w-max px-1">
+                                        <div v-for="loc in getLocations(task)" class="flex items-center border-b border-gray-200 pb-1 mt-2 text-[14px] font-light">
                                             <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-600'">{{ loc.phase }}</span>
                                             <span class="text-gray-300 mx-1.5">|</span>
                                             <span class="text-gray-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
                                         </div>
+                                        
+                                        <h3 class="text-[26px] sm:text-[28px] font-normal text-gray-800 tracking-wide leading-none mt-3">{{ task.mainCategory }}</h3>
                                     </div>
                                     
-                                    <div class="flex flex-col items-end shrink-0 ml-2">
-                                        <div class="py-1 text-[28px] sm:text-[30px] font-thin text-gray-800 tracking-widest leading-none text-right">
-                                            {{ formatDateWithDay(task.startDate) }}
+                                    <div class="flex flex-col justify-between items-end ml-4">
+                                        <div class="flex flex-col items-end shrink-0">
+                                            <div class="text-[28px] sm:text-[30px] font-thin text-gray-700 tracking-widest leading-none text-right">
+                                                {{ formatDateWithDay(task.startDate) }}
+                                            </div>
+                                            <div v-if="task.startDate !== task.endDate" class="text-[28px] sm:text-[30px] font-thin text-gray-700 tracking-widest leading-none mt-1.5 text-right">
+                                                {{ formatDateWithDay(task.endDate) }}
+                                            </div>
                                         </div>
-                                        <div v-if="task.startDate !== task.endDate" class="py-1 text-[28px] sm:text-[30px] font-thin text-gray-800 tracking-widest leading-none mt-1 text-right">
-                                            {{ formatDateWithDay(task.endDate) }}
+                                        
+                                        <div class="text-[16px] text-gray-700 font-light flex items-center leading-none text-right mt-4">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-[16px] w-[16px] mr-1.5 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                                              <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                                            </svg>
+                                            {{ task.managers && task.managers.length ? task.managers.join(' ') : '未指定' }}
                                         </div>
-                                    </div>
-                                </div>
-
-                                <div class="flex justify-between items-end mt-5">
-                                    <h3 class="text-[26px] sm:text-[28px] font-black text-gray-800 tracking-wide leading-none">{{ task.mainCategory }}</h3>
-                                    
-                                    <div class="text-[16px] text-gray-700 font-light flex items-center leading-none text-right">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-[16px] w-[16px] mr-1.5 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
-                                          <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
-                                        </svg>
-                                        {{ task.managers && task.managers.length ? task.managers.join(' ') : '未指定' }}
                                     </div>
                                 </div>
                             </div>
@@ -1082,7 +1083,7 @@
                 },
                 isTaskCompleted(task) { return task.isCompleted || task.isSuspended || task.endDate < this.todayStr; },
                 getContractorColor(contractor) {
-                    const fixedMap = { '和億': 'bg-cyan-500', '富懋': 'bg-[#059669]', '明辰': 'bg-rose-500', '明凱': 'bg-blue-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
+                    const fixedMap = { '和億': 'bg-[#8B4513]', '富懋': 'bg-[#059669]', '明辰': 'bg-rose-500', '明凱': 'bg-blue-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
                     let name = (contractor || '').trim(); return fixedMap[name] || 'bg-slate-400';
                 },
                 getLocations(task) { return task.locations || [{ phase: 'P2', building: task.building, floor: task.floor }]; },
