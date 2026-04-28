@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v50.4 (排版精修版)</title>
+    <title>工程執行紀錄系統 v50.5 (設計圖完美還原版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -192,46 +192,46 @@
                         <template v-for="(task, index) in visibleActiveTasks" :key="'active-'+task.id">
                             
                             <div v-if="sortBy === 'time' && (index === 0 || task.startDate !== visibleActiveTasks[index-1].startDate)" 
-                                 class="flex items-center pt-4 pb-1">
-                                <div class="flex-grow border-b-2 border-slate-200 rounded-full"></div>
-                                <span class="text-gray-400 font-light text-[16px] tracking-widest mx-4">
+                                 class="flex items-center pt-4 pb-2">
+                                <div class="flex-grow border-b-2 border-gray-200 rounded-full"></div>
+                                <span class="text-gray-400 font-light text-[15px] tracking-widest mx-4">
                                     {{ getFullDateString(task.startDate) }}
                                 </span>
-                                <div class="flex-grow border-b-2 border-slate-200 rounded-full"></div>
+                                <div class="flex-grow border-b-2 border-gray-200 rounded-full"></div>
                             </div>
 
-                            <div :id="'task-' + task.id" class="border border-gray-200 rounded-lg shadow-sm bg-white overflow-hidden">
+                            <div :id="'task-' + task.id" class="border border-gray-200 rounded-xl shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] bg-white overflow-hidden">
                                 
-                                <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
+                                <div class="p-5 cursor-pointer" @click="task.expanded = !task.expanded">
                                     
                                     <div class="flex justify-between items-start">
-                                        <div class="inline-flex flex-col items-stretch gap-1 w-full">
-                                            <div class="px-2 py-1.5 rounded text-white text-[16px] sm:text-[18px] font-normal tracking-wide leading-none shadow-sm flex items-center justify-center text-center" :class="getContractorColor(task.contractor)">
-                                                {{ task.contractor || '未指定' }}
+                                        <div class="flex flex-col items-stretch w-max">
+                                            <div class="py-1.5 px-3 rounded-md text-white text-[18px] font-normal tracking-widest leading-none shadow-sm text-center" :class="getContractorColor(task.contractor)">
+                                                {{ formatContractorName(task.contractor) }}
                                             </div>
                                             
-                                            <div v-for="loc in getLocations(task)" class="flex items-center border-b-2 border-gray-200 pb-1 mt-1 text-[16px] font-light justify-center text-center">
-                                                <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-600'">{{ loc.phase }}</span>
+                                            <div v-for="loc in getLocations(task)" class="flex items-center border-b border-gray-200 pb-1.5 mt-2 text-[15px] font-light justify-center text-center">
+                                                <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-500'">{{ loc.phase }}</span>
                                                 <span class="text-gray-300 mx-2">|</span>
                                                 <span class="text-gray-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
                                             </div>
                                         </div>
                                         
                                         <div class="flex flex-col items-end shrink-0 ml-4">
-                                            <div class="py-1 text-[28px] sm:text-[30px] font-thin text-gray-700 tracking-widest leading-none text-right">
+                                            <div class="text-[32px] sm:text-[34px] font-thin text-gray-600 tracking-wider leading-none text-right">
                                                 {{ formatDateWithDay(task.startDate) }}
                                             </div>
-                                            <div v-if="task.startDate !== task.endDate" class="py-1 text-[28px] sm:text-[30px] font-thin text-gray-700 tracking-widest leading-none mt-1.5 text-right">
+                                            <div v-if="task.startDate !== task.endDate" class="text-[32px] sm:text-[34px] font-thin text-gray-600 tracking-wider leading-none mt-2 text-right">
                                                 {{ formatDateWithDay(task.endDate) }}
                                             </div>
                                         </div>
                                     </div>
 
                                     <div class="flex justify-between items-end mt-4">
-                                        <h3 class="text-[26px] sm:text-[28px] font-normal text-gray-800 tracking-wide leading-none">{{ task.mainCategory }}</h3>
+                                        <h3 class="text-[24px] sm:text-[26px] font-normal text-gray-800 tracking-wide leading-none">{{ task.mainCategory }}</h3>
                                         
-                                        <div class="text-[16px] text-gray-700 font-light flex items-center leading-none text-right">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-[16px] w-[16px] mr-1.5 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                                        <div class="text-[15px] text-gray-500 font-light flex items-center leading-none text-right">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-[15px] w-[15px] mr-1.5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                                               <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
                                             </svg>
                                             {{ task.managers && task.managers.length ? task.managers.join(' ') : '未指定' }}
@@ -239,38 +239,36 @@
                                     </div>
                                 </div>
                                 
-                                <div v-if="task.expanded" class="px-4 pb-4">
-                                    <hr class="border-gray-200 my-1">
-                                    
-                                    <div class="flex items-start text-[14px] py-3">
-                                        <span class="w-[72px] shrink-0 text-gray-800 font-bold">施工項目:</span>
-                                        <span class="text-gray-800 flex-grow">{{ task.subItems && task.subItems.length ? task.subItems.join(', ') : '無' }}</span>
-                                    </div>
-                                    
-                                    <hr class="border-gray-200">
-                                    
-                                    <div class="flex items-start text-[14px] py-3">
-                                        <span class="w-[72px] shrink-0 text-gray-800 font-bold">備註事項:</span>
-                                        <div class="text-gray-800 flex-grow whitespace-pre-wrap leading-relaxed">{{ task.remark || '無' }}</div>
-                                    </div>
-                                    
-                                    <hr class="border-gray-200">
-                                    
-                                    <div class="flex items-start text-[14px] py-3">
-                                        <span class="w-[72px] shrink-0 text-gray-800 font-bold">應辦事項:</span>
-                                        <span class="text-gray-800 flex-grow">{{ task.permits && task.permits.length ? task.permits.join(', ') : '無' }}</span>
-                                    </div>
-                                    
-                                    <hr class="border-gray-200">
-                                    
-                                    <div v-if="user" class="flex justify-between items-center gap-2 pt-3">
-                                        <button @click.stop="toggleCompleteStatus(task)" class="flex-1 h-9 flex items-center justify-center bg-[#14b8a6] hover:bg-teal-500 text-white text-sm font-bold rounded transition-colors shadow-sm">已完工</button>
-                                        <button @click.stop="toggleSuspendStatus(task)" class="flex-1 h-9 flex items-center justify-center bg-[#ef4444] hover:bg-red-500 text-white text-sm font-bold rounded transition-colors shadow-sm">停工</button>
+                                <div v-if="task.expanded" class="px-5 pb-5">
+                                    <div class="mt-1 pt-2 border-t border-gray-100">
+                                        <div class="flex items-start text-[15px] py-2.5">
+                                            <span class="w-[80px] shrink-0 text-gray-900 font-bold tracking-wide">施工項目:</span>
+                                            <span class="text-gray-800 flex-grow leading-snug">{{ task.subItems && task.subItems.length ? task.subItems.join(', ') : '無' }}</span>
+                                        </div>
                                         
-                                        <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="shrink-0 w-9 h-9 flex items-center justify-center rounded bg-[#14b8a6] hover:bg-teal-500 text-white font-black text-xl transition-colors shadow-sm">＋</button>
+                                        <hr class="border-gray-100">
+                                        
+                                        <div class="flex items-start text-[15px] py-2.5">
+                                            <span class="w-[80px] shrink-0 text-gray-900 font-bold tracking-wide">備註事項:</span>
+                                            <div class="text-gray-800 flex-grow whitespace-pre-wrap leading-relaxed">{{ task.remark || '無' }}</div>
+                                        </div>
+                                        
+                                        <hr class="border-gray-100">
+                                        
+                                        <div class="flex items-start text-[15px] py-2.5">
+                                            <span class="w-[80px] shrink-0 text-gray-900 font-bold tracking-wide">應辦事項:</span>
+                                            <span class="text-gray-800 flex-grow leading-snug">{{ task.permits && task.permits.length ? task.permits.join(', ') : '無' }}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div v-if="user" class="flex justify-between items-center gap-2.5 pt-4 mt-1 border-t border-gray-100">
+                                        <button @click.stop="toggleCompleteStatus(task)" class="flex-1 h-10 flex items-center justify-center bg-[#14b8a6] hover:bg-teal-600 text-white text-[15px] font-bold rounded-md shadow-sm transition-colors">已完工</button>
+                                        <button @click.stop="toggleSuspendStatus(task)" class="flex-1 h-10 flex items-center justify-center bg-[#ef4444] hover:bg-red-600 text-white text-[15px] font-bold rounded-md shadow-sm transition-colors">停工</button>
+                                        
+                                        <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="shrink-0 w-10 h-10 flex items-center justify-center bg-[#14b8a6] hover:bg-teal-600 text-white text-[22px] font-black rounded-md shadow-sm transition-colors">＋</button>
 
-                                        <button @click.stop="openEditModal(task)" class="flex-1 h-9 flex items-center justify-center bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm font-bold rounded transition-colors shadow-sm">修改</button>
-                                        <button @click.stop="confirmDelete(task)" class="flex-1 h-9 flex items-center justify-center bg-white border border-gray-300 text-[#ef4444] hover:bg-red-50 text-sm font-bold rounded transition-colors shadow-sm">刪除</button>
+                                        <button @click.stop="openEditModal(task)" class="flex-1 h-10 flex items-center justify-center bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-[15px] font-bold rounded-md shadow-sm transition-colors">修改</button>
+                                        <button @click.stop="confirmDelete(task)" class="flex-1 h-10 flex items-center justify-center bg-white border border-gray-300 text-[#ef4444] hover:bg-red-50 text-[15px] font-bold rounded-md shadow-sm transition-colors">刪除</button>
                                     </div>
                                 </div>
                             </div>
@@ -294,39 +292,39 @@
                             這段期間沒有歷史紀錄。
                         </div>
                         
-                        <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border border-gray-200 rounded-lg shadow-sm bg-gray-50 overflow-hidden opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0 transition-all">
+                        <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border border-gray-200 rounded-xl shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] bg-gray-50 overflow-hidden opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0 transition-all">
                             
-                            <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
+                            <div class="p-5 cursor-pointer" @click="task.expanded = !task.expanded">
                                 <div class="flex justify-between items-start">
-                                    <div class="inline-flex flex-col items-stretch gap-1 w-full">
-                                        <div class="px-2 py-1.5 rounded text-white text-[16px] sm:text-[18px] font-normal tracking-wide leading-none shadow-sm flex justify-center items-center text-center" :class="getContractorColor(task.contractor)">
-                                            {{ task.contractor || '未指定' }}
-                                            <span v-if="task.isSuspended" class="text-[12px] font-normal ml-1">(停工)</span>
-                                            <span v-else class="text-[12px] font-normal ml-1">(完工)</span>
+                                    <div class="flex flex-col items-stretch w-max">
+                                        <div class="py-1.5 px-3 rounded-md text-white text-[18px] font-normal tracking-widest leading-none shadow-sm flex justify-center items-center text-center" :class="getContractorColor(task.contractor)">
+                                            {{ formatContractorName(task.contractor) }}
+                                            <span v-if="task.isSuspended" class="text-[13px] font-normal ml-1">(停工)</span>
+                                            <span v-else class="text-[13px] font-normal ml-1">(完工)</span>
                                         </div>
                                         
-                                        <div v-for="loc in getLocations(task)" class="flex items-center justify-center border-b-2 border-gray-200 pb-1 mt-1 text-[16px] font-light text-center">
-                                            <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-600'">{{ loc.phase }}</span>
+                                        <div v-for="loc in getLocations(task)" class="flex items-center border-b border-gray-200 pb-1.5 mt-2 text-[15px] font-light justify-center text-center">
+                                            <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-500'">{{ loc.phase }}</span>
                                             <span class="text-gray-300 mx-2">|</span>
                                             <span class="text-gray-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
                                         </div>
                                     </div>
                                     
                                     <div class="flex flex-col items-end shrink-0 ml-4">
-                                        <div class="py-1 text-[28px] sm:text-[30px] font-thin text-gray-700 tracking-widest leading-none text-right">
+                                        <div class="text-[32px] sm:text-[34px] font-thin text-gray-600 tracking-wider leading-none text-right">
                                             {{ formatDateWithDay(task.startDate) }}
                                         </div>
-                                        <div v-if="task.startDate !== task.endDate" class="py-1 text-[28px] sm:text-[30px] font-thin text-gray-700 tracking-widest leading-none mt-1.5 text-right">
+                                        <div v-if="task.startDate !== task.endDate" class="text-[32px] sm:text-[34px] font-thin text-gray-600 tracking-wider leading-none mt-2 text-right">
                                             {{ formatDateWithDay(task.endDate) }}
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="flex justify-between items-end mt-4">
-                                    <h3 class="text-[26px] sm:text-[28px] font-normal text-gray-800 tracking-wide leading-none">{{ task.mainCategory }}</h3>
+                                    <h3 class="text-[24px] sm:text-[26px] font-normal text-gray-800 tracking-wide leading-none">{{ task.mainCategory }}</h3>
                                     
-                                    <div class="text-[16px] text-gray-700 font-light flex items-center leading-none text-right">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-[16px] w-[16px] mr-1.5 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                                    <div class="text-[15px] text-gray-500 font-light flex items-center leading-none text-right">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-[15px] w-[15px] mr-1.5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                                           <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
                                         </svg>
                                         {{ task.managers && task.managers.length ? task.managers.join(' ') : '未指定' }}
@@ -334,41 +332,39 @@
                                 </div>
                             </div>
                             
-                            <div v-if="task.expanded" class="px-4 pb-4">
+                            <div v-if="task.expanded" class="px-5 pb-5">
                                 <div v-if="task.isSuspended" class="mb-3 text-xs p-2.5 rounded bg-rose-100 text-rose-800 border border-rose-200 font-bold">
                                     🛑 停工原因：{{ task.suspendReason }}
                                 </div>
                                 
-                                <hr class="border-gray-200 my-1">
-                                
-                                <div class="flex items-start text-[14px] py-3">
-                                    <span class="w-[72px] shrink-0 text-gray-800 font-bold">施工項目:</span>
-                                    <span class="text-gray-800 flex-grow">{{ task.subItems && task.subItems.length ? task.subItems.join(', ') : '無' }}</span>
-                                </div>
-                                
-                                <hr class="border-gray-200">
-                                
-                                <div class="flex items-start text-[14px] py-3">
-                                    <span class="w-[72px] shrink-0 text-gray-800 font-bold">備註事項:</span>
-                                    <div class="text-gray-800 flex-grow whitespace-pre-wrap leading-relaxed">{{ task.remark || '無' }}</div>
-                                </div>
-                                
-                                <hr class="border-gray-200">
-                                
-                                <div class="flex items-start text-[14px] py-3">
-                                    <span class="w-[72px] shrink-0 text-gray-800 font-bold">應辦事項:</span>
-                                    <span class="text-gray-800 flex-grow">{{ task.permits && task.permits.length ? task.permits.join(', ') : '無' }}</span>
-                                </div>
-                                
-                                <hr class="border-gray-200">
-
-                                <div v-if="user" class="flex justify-between items-center gap-2 pt-3">
-                                    <button v-if="task.isSuspended && canToggleSuspend(task)" @click.stop="toggleSuspendStatus(task)" class="flex-1 h-9 flex items-center justify-center bg-white border border-gray-300 text-gray-600 text-sm font-bold rounded transition-colors shadow-sm">↩️ 取消停工</button>
-                                    <button v-else-if="!task.isSuspended && canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" class="flex-1 h-9 flex items-center justify-center bg-white border border-gray-300 text-gray-600 text-sm font-bold rounded transition-colors shadow-sm">↩️ 取消完工</button>
+                                <div class="mt-1 pt-2 border-t border-gray-100">
+                                    <div class="flex items-start text-[15px] py-2.5">
+                                        <span class="w-[80px] shrink-0 text-gray-900 font-bold tracking-wide">施工項目:</span>
+                                        <span class="text-gray-800 flex-grow leading-snug">{{ task.subItems && task.subItems.length ? task.subItems.join(', ') : '無' }}</span>
+                                    </div>
                                     
-                                    <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="shrink-0 w-9 h-9 flex items-center justify-center rounded bg-[#14b8a6] hover:bg-teal-500 text-white font-black text-xl transition-colors shadow-sm">＋</button>
+                                    <hr class="border-gray-100">
+                                    
+                                    <div class="flex items-start text-[15px] py-2.5">
+                                        <span class="w-[80px] shrink-0 text-gray-900 font-bold tracking-wide">備註事項:</span>
+                                        <div class="text-gray-800 flex-grow whitespace-pre-wrap leading-relaxed">{{ task.remark || '無' }}</div>
+                                    </div>
+                                    
+                                    <hr class="border-gray-100">
+                                    
+                                    <div class="flex items-start text-[15px] py-2.5">
+                                        <span class="w-[80px] shrink-0 text-gray-900 font-bold tracking-wide">應辦事項:</span>
+                                        <span class="text-gray-800 flex-grow leading-snug">{{ task.permits && task.permits.length ? task.permits.join(', ') : '無' }}</span>
+                                    </div>
+                                </div>
 
-                                    <button @click.stop="confirmDelete(task)" class="flex-1 h-9 flex items-center justify-center bg-white border border-gray-300 text-[#ef4444] text-sm font-bold rounded transition-colors shadow-sm">刪除</button>
+                                <div v-if="user" class="flex justify-between items-center gap-2.5 pt-4 mt-1 border-t border-gray-100">
+                                    <button v-if="task.isSuspended && canToggleSuspend(task)" @click.stop="toggleSuspendStatus(task)" class="flex-1 h-10 flex items-center justify-center bg-white border border-gray-300 text-gray-700 text-[15px] font-bold rounded-md shadow-sm transition-colors">↩️ 取消停工</button>
+                                    <button v-else-if="!task.isSuspended && canToggleComplete(task)" @click.stop="toggleCompleteStatus(task)" class="flex-1 h-10 flex items-center justify-center bg-white border border-gray-300 text-gray-700 text-[15px] font-bold rounded-md shadow-sm transition-colors">↩️ 取消完工</button>
+                                    
+                                    <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="shrink-0 w-10 h-10 flex items-center justify-center bg-[#14b8a6] hover:bg-teal-600 text-white text-[22px] font-black rounded-md shadow-sm transition-colors">＋</button>
+
+                                    <button @click.stop="confirmDelete(task)" class="flex-1 h-10 flex items-center justify-center bg-white border border-gray-300 text-[#ef4444] hover:bg-red-50 text-[15px] font-bold rounded-md shadow-sm transition-colors">刪除</button>
                                 </div>
                             </div>
                         </div>
@@ -722,6 +718,12 @@
                     if (daysA !== daysB) return daysB - daysA;
                     let cA = a.contractor || ''; let cB = b.contractor || '';
                     return cA.localeCompare(cB);
+                },
+                formatContractorName(name) {
+                    if (!name) return '未指定';
+                    let str = name.trim();
+                    if (str.length === 2) return str[0] + ' ' + str[1];
+                    return str;
                 },
                 getFullDateString(dateStr) {
                     if (!dateStr) return '';
@@ -1082,7 +1084,7 @@
                 },
                 isTaskCompleted(task) { return task.isCompleted || task.isSuspended || task.endDate < this.todayStr; },
                 getContractorColor(contractor) {
-                    const fixedMap = { '和億': 'bg-cyan-500', '富懋': 'bg-[#059669]', '明辰': 'bg-rose-500', '明凱': 'bg-blue-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
+                    const fixedMap = { '和億': 'bg-teal-400', '富懋': 'bg-[#059669]', '明辰': 'bg-rose-500', '明凱': 'bg-blue-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
                     let name = (contractor || '').trim(); return fixedMap[name] || 'bg-slate-400';
                 },
                 getLocations(task) { return task.locations || [{ phase: 'P2', building: task.building, floor: task.floor }]; },
