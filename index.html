@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工程執行紀錄系統 v50.0 (離線節能架構版)</title>
+    <title>工程執行紀錄系統 v50.1 (日期分隔與排序同步版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -185,6 +185,15 @@
                         </div>
 
                         <template v-for="(task, index) in visibleActiveTasks" :key="'active-'+task.id">
+                            
+                            <div v-if="sortBy === 'time' && (index === 0 || task.startDate !== visibleActiveTasks[index-1].startDate)" 
+                                 class="flex items-center pt-4 pb-1">
+                                <span class="text-slate-700 font-black text-[16px] tracking-widest mr-3">
+                                    {{ getFullDateString(task.startDate) }}
+                                </span>
+                                <div class="flex-grow border-b-2 border-slate-200 rounded-full"></div>
+                            </div>
+
                             <div :id="'task-' + task.id" class="border border-gray-200 rounded-lg shadow-sm bg-white overflow-hidden">
                                 
                                 <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
@@ -259,13 +268,6 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <div v-if="sortBy === 'time' && index < visibleActiveTasks.length - 1 && task.startDate !== visibleActiveTasks[index+1].startDate" 
-                                 class="my-5 border-b border-gray-200 relative">
-                                <span class="absolute right-0 -top-2.5 bg-gray-50 text-gray-400 font-bold text-[10px] px-2 py-0.5">
-                                    {{ visibleActiveTasks[index+1].startDate }}
-                                </span>
-                            </div>
                         </template>
 
                         <button v-if="activeTasks.length > visibleLimit" @click="loadMore" class="w-full py-4 mt-2 bg-white border-2 border-dashed border-gray-200 text-blue-500 rounded-xl font-bold hover:bg-blue-50 transition-colors text-sm shadow-sm active:scale-95">
@@ -289,7 +291,6 @@
                         <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border border-gray-200 rounded-lg shadow-sm bg-gray-50 overflow-hidden opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0 transition-all">
                             
                             <div class="p-4 cursor-pointer" @click="task.expanded = !task.expanded">
-                                
                                 <div class="flex justify-between items-start">
                                     <div class="inline-flex flex-col items-stretch gap-1.5">
                                         <div class="px-2 py-1.5 rounded text-white text-[14px] font-normal tracking-wide leading-none shadow-sm flex justify-center items-center" :class="getContractorColor(task.contractor)">
@@ -671,9 +672,7 @@
                             if (cA !== cB) return cA.localeCompare(cB);
                             return a.startDate.localeCompare(b.startDate);
                         } else {
-                            if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
-                            let cA = a.contractor || ''; let cB = b.contractor || '';
-                            return cA.localeCompare(cB);
+                            return this.sortTasksFn(a, b);
                         }
                     });
                     return active;
@@ -707,10 +706,25 @@
 
                 onAuthStateChanged(auth, (user) => { this.user = user; });
 
-                // 移除 onSnapshot，改為初始化時手動載入目前月份資料
                 this.loadSurroundingMonths(this.currentYear, this.currentMonth);
             },
             methods: {
+                sortTasksFn(a, b) {
+                    if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
+                    let daysA = parseInt(a.days) || 1;
+                    let daysB = parseInt(b.days) || 1;
+                    if (daysA !== daysB) return daysB - daysA;
+                    let cA = a.contractor || ''; let cB = b.contractor || '';
+                    return cA.localeCompare(cB);
+                },
+                getFullDateString(dateStr) {
+                    if (!dateStr) return '';
+                    const parts = dateStr.split('-');
+                    if (parts.length !== 3) return dateStr;
+                    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                    const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+                    return `${dateStr} ${days[d.getDay()]}`;
+                },
                 formatDateWithDay(dateStr) {
                     if (!dateStr) return '';
                     const parts = dateStr.split('-');
@@ -817,7 +831,7 @@
                         let mEnd = new Date(targetYear, targetMonth, daysInMonth);
                         return tEnd >= mStart && tStart <= mEnd;
                     });
-                    monthTasks.sort((a, b) => a.startDate.localeCompare(b.startDate));
+                    monthTasks.sort(this.sortTasksFn);
 
                     let trackUsage = Array.from({ length: 31 }, () => ({}));
                     monthTasks.forEach(task => {
@@ -894,7 +908,6 @@
                         const snapshot = await getDocs(q);
                         let monthData = [];
                         snapshot.forEach(doc => { 
-                            // 不再檢查 recentTasks，因為去除了即時推播
                             monthData.push({ id: doc.id, ...doc.data(), expanded: false }); 
                         });
                         this.tasksByMonth[monthKey] = monthData;
@@ -902,7 +915,6 @@
                         this.loadedMonths.push(monthKey);
                     } finally { this.isLoadingHistory = false; }
                 },
-                // 手動更新本地快取 (建立/修改/刪除/狀態變更時調用)
                 updateLocalCache(taskId, newData, isDelete = false) {
                     let updated = false;
                     for (let monthKey in this.tasksByMonth) {
@@ -917,7 +929,6 @@
                         }
                     }
                     if (!updated && !isDelete && newData) {
-                        // 新增的工項，放到正確的月份
                         let [y, m] = newData.startDate.split('-');
                         let monthKey = `${y}-${m}`;
                         if (!this.tasksByMonth[monthKey]) this.tasksByMonth[monthKey] = [];
