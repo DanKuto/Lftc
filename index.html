@@ -833,18 +833,22 @@
                     const firstDay = new Date(targetYear, targetMonth, 1).getDay();
                     const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
                     let monthTasks = this.filteredTasks.filter(task => {
-                        let tStart = new Date(task.startDate);
-                        let tEnd = new Date(task.endDate);
+                        let [sY, sM, sD] = task.startDate.split('-');
+                        let tStart = new Date(sY, sM - 1, sD);
+                        let [eY, eM, eD] = task.endDate.split('-');
+                        let tEnd = new Date(eY, eM - 1, eD);
                         let mStart = new Date(targetYear, targetMonth, 1);
-                        let mEnd = new Date(targetYear, targetMonth, daysInMonth);
+                        let mEnd = new Date(targetYear, targetMonth, daysInMonth, 23, 59, 59);
                         return tEnd >= mStart && tStart <= mEnd;
                     });
                     monthTasks.sort(this.sortTasksFn);
 
                     let trackUsage = Array.from({ length: 31 }, () => ({}));
                     monthTasks.forEach(task => {
-                        let tStart = new Date(task.startDate);
-                        let tEnd = new Date(task.endDate);
+                        let [sY, sM, sD] = task.startDate.split('-');
+                        let tStart = new Date(sY, sM - 1, sD);
+                        let [eY, eM, eD] = task.endDate.split('-');
+                        let tEnd = new Date(eY, eM - 1, eD);
                         let trackIndex = 0; let foundTrack = false;
                         while (!foundTrack) {
                             let canUseTrack = true;
@@ -918,7 +922,6 @@
                     let lastDay = new Date(year, month + 1, 0).getDate();
                     let endStr = `${year}-${mStr}-${lastDay}`;
 
-                    // 如果該查詢月份的最後一天早於60天前，直接停止發送請求，降低耗電及讀取數
                     if (endStr < cutoffStr) {
                         this.tasksByMonth[monthKey] = [];
                         this.tasksByMonth = { ...this.tasksByMonth };
@@ -926,7 +929,6 @@
                         return;
                     }
 
-                    // 確保查詢起點不會早於 60 天前
                     let queryStartStr = startStr < cutoffStr ? cutoffStr : startStr;
                     // --- 60天限制邏輯結束 ---
 
@@ -996,8 +998,10 @@
                     let dailyMap = {};
                     exportList.forEach(task => {
                         if (!task.startDate || !task.endDate) return;
-                        let tStart = new Date(task.startDate);
-                        let tEnd = new Date(task.endDate);
+                        let [sY, sM, sD] = task.startDate.split('-');
+                        let tStart = new Date(sY, sM - 1, sD);
+                        let [eY, eM, eD] = task.endDate.split('-');
+                        let tEnd = new Date(eY, eM - 1, eD);
                         let curDate = new Date(tStart);
                         
                         while (curDate <= tEnd) {
