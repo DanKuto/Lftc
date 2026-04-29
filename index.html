@@ -262,13 +262,22 @@
                                     </div>
                                     
                                     <div v-if="user" class="flex justify-between items-center gap-2.5 pt-4 mt-1 border-t border-gray-100">
-                                        <button @click.stop="toggleCompleteStatus(task)" class="flex-1 h-10 flex items-center justify-center bg-[#14b8a6] hover:bg-teal-600 text-white text-[15px] font-bold rounded-md shadow-sm transition-colors">已完工</button>
-                                        <button @click.stop="toggleSuspendStatus(task)" class="flex-1 h-10 flex items-center justify-center bg-[#ef4444] hover:bg-red-600 text-white text-[15px] font-bold rounded-md shadow-sm transition-colors">停工</button>
-                                        
-                                        <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="shrink-0 w-10 h-10 flex items-center justify-center bg-[#14b8a6] hover:bg-teal-600 text-white text-[22px] font-black rounded-md shadow-sm transition-colors">＋</button>
+                                        <template v-if="!task.showCompleteOptions">
+                                            <button v-if="hasTodayCompleted(task)" @click.stop="toggleTodayComplete(task)" class="flex-1 h-10 flex items-center justify-center bg-white border border-gray-300 text-gray-700 text-[15px] font-bold rounded-md shadow-sm transition-colors">↩️ 取消當天</button>
+                                            <button v-else @click.stop="task.showCompleteOptions = true" class="flex-1 h-10 flex items-center justify-center bg-[#14b8a6] hover:bg-teal-600 text-white text-[15px] font-bold rounded-md shadow-sm transition-colors">已完工</button>
+                                            
+                                            <button @click.stop="toggleSuspendStatus(task)" class="flex-1 h-10 flex items-center justify-center bg-[#ef4444] hover:bg-red-600 text-white text-[15px] font-bold rounded-md shadow-sm transition-colors">停工</button>
+                                            
+                                            <button @click.stop="duplicateTask(task)" title="複製此工項並編輯" class="shrink-0 w-10 h-10 flex items-center justify-center bg-[#14b8a6] hover:bg-teal-600 text-white text-[22px] font-black rounded-md shadow-sm transition-colors">＋</button>
 
-                                        <button @click.stop="openEditModal(task)" class="flex-1 h-10 flex items-center justify-center bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-[15px] font-bold rounded-md shadow-sm transition-colors">修改</button>
-                                        <button @click.stop="confirmDelete(task)" class="flex-1 h-10 flex items-center justify-center bg-white border border-gray-300 text-[#ef4444] hover:bg-red-50 text-[15px] font-bold rounded-md shadow-sm transition-colors">刪除</button>
+                                            <button @click.stop="openEditModal(task)" class="flex-1 h-10 flex items-center justify-center bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-[15px] font-bold rounded-md shadow-sm transition-colors">修改</button>
+                                            <button @click.stop="confirmDelete(task)" class="flex-1 h-10 flex items-center justify-center bg-white border border-gray-300 text-[#ef4444] hover:bg-red-50 text-[15px] font-bold rounded-md shadow-sm transition-colors">刪除</button>
+                                        </template>
+                                        <template v-else>
+                                            <button @click.stop="toggleTodayComplete(task)" class="flex-1 h-10 flex items-center justify-center bg-[#14b8a6] hover:bg-teal-600 text-white text-[15px] font-bold rounded-md shadow-sm transition-colors">當天完工</button>
+                                            <button @click.stop="toggleCompleteStatus(task)" class="flex-1 h-10 flex items-center justify-center bg-[#ef4444] hover:bg-red-600 text-white text-[15px] font-bold rounded-md shadow-sm transition-colors">工項完工</button>
+                                            <button @click.stop="task.showCompleteOptions = false" class="shrink-0 w-10 h-10 flex items-center justify-center bg-gray-200 hover:bg-gray-300 text-gray-700 text-[15px] font-bold rounded-md shadow-sm transition-colors">✕</button>
+                                        </template>
                                     </div>
                                 </div>
                             </div>
@@ -570,8 +579,12 @@
 
         createApp({
             data() {
+                // 修正 UTC 時區問題，一律以本地時間產生 todayStr
                 const today = new Date();
-                const todayStr = today.toISOString().split('T')[0];
+                const y = today.getFullYear();
+                const m = String(today.getMonth() + 1).padStart(2, '0');
+                const d = String(today.getDate()).padStart(2, '0');
+                const todayStr = `${y}-${m}-${d}`;
 
                 return {
                     config: CONFIG,
@@ -599,7 +612,7 @@
                     newTask: {
                         startDate: todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
                         contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
-                        mainCategory: '', remark: '', subItems: [], permits: []
+                        mainCategory: '', remark: '', subItems: [], permits: [], completedDays: []
                     },
                     touchStartX: 0,
                     touchStartY: 0,
@@ -888,7 +901,13 @@
                                 let idx = parseInt(trackIndex);
                                 if (idx > dayData.maxTrack) dayData.maxTrack = idx;
                                 let classes = this.getContractorColor(task.contractor) + ' ';
-                                if (task.isSuspended || task.isCompleted || dateStr < this.todayStr) classes += 'grayscale opacity-60 ';
+                                
+                                // 加入「當天完工」的灰階判定邏輯
+                                let isTodayCompleted = task.completedDays && task.completedDays.includes(dateStr);
+                                if (task.isSuspended || task.isCompleted || dateStr < this.todayStr || isTodayCompleted) {
+                                    classes += 'grayscale opacity-60 ';
+                                }
+                                
                                 if (dateStr === task.startDate && dateStr === task.endDate) classes += 'rounded-[2px] right-[2px] left-[2px]';
                                 else if (dateStr === task.startDate) classes += 'rounded-l-[2px] left-[2px] right-0';
                                 else if (dateStr === task.endDate) classes += 'rounded-r-[2px] right-[2px] left-0';
@@ -912,7 +931,6 @@
                     let monthKey = `${year}-${mStr}`;
                     if (this.loadedMonths.includes(monthKey)) return;
                     
-                    // --- 60天限制邏輯開始 ---
                     const today = new Date();
                     const cutoffDate = new Date();
                     cutoffDate.setDate(cutoffDate.getDate() - 60);
@@ -930,7 +948,6 @@
                     }
 
                     let queryStartStr = startStr < cutoffStr ? cutoffStr : startStr;
-                    // --- 60天限制邏輯結束 ---
 
                     this.isLoadingHistory = true;
                     try {
@@ -938,7 +955,7 @@
                         const snapshot = await getDocs(q);
                         let monthData = [];
                         snapshot.forEach(doc => { 
-                            monthData.push({ id: doc.id, ...doc.data(), expanded: false }); 
+                            monthData.push({ id: doc.id, ...doc.data(), expanded: false, showCompleteOptions: false }); 
                         });
                         this.tasksByMonth[monthKey] = monthData;
                         this.tasksByMonth = { ...this.tasksByMonth };
@@ -962,7 +979,7 @@
                         let [y, m] = newData.startDate.split('-');
                         let monthKey = `${y}-${m}`;
                         if (!this.tasksByMonth[monthKey]) this.tasksByMonth[monthKey] = [];
-                        this.tasksByMonth[monthKey].push({ id: taskId, ...newData, expanded: false });
+                        this.tasksByMonth[monthKey].push({ id: taskId, ...newData, expanded: false, showCompleteOptions: false });
                     }
                     this.tasksByMonth = { ...this.tasksByMonth };
                 },
@@ -1140,7 +1157,7 @@
                     this.newTask = {
                         startDate: this.todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
                         contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
-                        mainCategory: '', remark: '', subItems: [], permits: []
+                        mainCategory: '', remark: '', subItems: [], permits: [], completedDays: []
                     };
                     this.showModal = true;
                 },
@@ -1150,7 +1167,8 @@
                         ...task, 
                         locations: task.locations && task.locations.length > 0 ? JSON.parse(JSON.stringify(task.locations)) : [{ phase: 'P2', building: task.building, floor: task.floor }],
                         managers: task.managers && task.managers.length > 0 ? [...task.managers] : [''],
-                        remark: task.remark || '', permits: task.permits ? [...task.permits] : []
+                        remark: task.remark || '', permits: task.permits ? [...task.permits] : [],
+                        completedDays: task.completedDays ? [...task.completedDays] : []
                     };
                     this.showModal = true;
                 },
@@ -1167,7 +1185,8 @@
                         mainCategory: task.mainCategory || '',
                         remark: task.remark || '',
                         subItems: task.subItems ? [...task.subItems] : [],
-                        permits: task.permits ? [...task.permits] : []
+                        permits: task.permits ? [...task.permits] : [],
+                        completedDays: [] // 複製為新排程，不繼承單日完工狀態
                     };
                     this.showModal = true;
                 },
@@ -1186,12 +1205,34 @@
                     let ey = date.getFullYear(); let em = String(date.getMonth() + 1).padStart(2, '0'); let ed = String(date.getDate()).padStart(2, '0');
                     return `${ey}-${em}-${ed}`;
                 },
+                
+                // 追加的方法：判斷今日是否已標記「當天完工」
+                hasTodayCompleted(task) {
+                    return task.completedDays && task.completedDays.includes(this.todayStr);
+                },
+                
+                // 追加的方法：切換「當天完工」狀態
+                async toggleTodayComplete(task) {
+                    if (!this.user) return;
+                    let completedDays = task.completedDays ? [...task.completedDays] : [];
+                    const idx = completedDays.indexOf(this.todayStr);
+                    if (idx > -1) {
+                        completedDays.splice(idx, 1); // 已經完工則取消
+                    } else {
+                        completedDays.push(this.todayStr); // 標記今天為完工
+                    }
+                    try {
+                        await updateDoc(doc(db, 'tasks', task.id), { completedDays });
+                        this.updateLocalCache(task.id, { completedDays, showCompleteOptions: false });
+                    } catch (e) { alert("更新失敗"); }
+                },
+
                 async toggleCompleteStatus(task) {
                     if (!this.user) return;
                     const next = !task.isCompleted;
                     try {
                         await updateDoc(doc(db, 'tasks', task.id), { isCompleted: next, completedDate: next ? this.todayStr : null });
-                        this.updateLocalCache(task.id, { isCompleted: next, completedDate: next ? this.todayStr : null });
+                        this.updateLocalCache(task.id, { isCompleted: next, completedDate: next ? this.todayStr : null, showCompleteOptions: false });
                     } catch (e) { alert("更新失敗"); }
                 },
                 async toggleSuspendStatus(task) {
@@ -1227,7 +1268,8 @@
                         subItems: [...this.newTask.subItems], permits: [...this.newTask.permits],
                         location: locationString, endDate: end,
                         isCompleted: this.newTask.isCompleted || false, completedDate: this.newTask.completedDate || null,
-                        isSuspended: this.newTask.isSuspended || false, suspendReason: this.newTask.suspendReason || null, suspendDate: this.newTask.suspendDate || null
+                        isSuspended: this.newTask.isSuspended || false, suspendReason: this.newTask.suspendReason || null, suspendDate: this.newTask.suspendDate || null,
+                        completedDays: this.newTask.completedDays || []
                     };
                     try {
                         if (this.editingTaskId) {
