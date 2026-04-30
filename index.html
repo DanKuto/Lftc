@@ -301,7 +301,8 @@
                             這段期間沒有歷史紀錄。
                         </div>
                         
-                        <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border border-gray-200 rounded-xl shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] bg-gray-50 overflow-hidden opacity-80 grayscale hover:grayscale-0 focus-within:grayscale-0 transition-all">
+                        <!-- 修改這裡：拿掉 hover:grayscale-0 和 focus-within:grayscale-0，確保維持灰階 -->
+                        <div v-for="task in visibleCompletedTasks" :key="'comp-'+task.id" :id="'task-' + task.id" class="border border-gray-200 rounded-xl shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] bg-gray-50 overflow-hidden opacity-80 grayscale transition-all">
                             
                             <div class="p-5 cursor-pointer" @click="task.expanded = !task.expanded">
                                 <div class="flex justify-between items-start">
@@ -579,7 +580,6 @@
 
         createApp({
             data() {
-                // 修正 UTC 時區問題，一律以本地時間產生 todayStr
                 const today = new Date();
                 const y = today.getFullYear();
                 const m = String(today.getMonth() + 1).padStart(2, '0');
@@ -900,12 +900,15 @@
                             if (task) {
                                 let idx = parseInt(trackIndex);
                                 if (idx > dayData.maxTrack) dayData.maxTrack = idx;
-                                let classes = this.getContractorColor(task.contractor) + ' ';
                                 
-                                // 加入「當天完工」的灰階判定邏輯
                                 let isTodayCompleted = task.completedDays && task.completedDays.includes(dateStr);
+                                let classes = '';
+                                
+                                // 改為統一使用 bg-slate-400 呈現完工與停工狀態
                                 if (task.isSuspended || task.isCompleted || dateStr < this.todayStr || isTodayCompleted) {
-                                    classes += 'grayscale opacity-60 ';
+                                    classes += 'bg-slate-400 opacity-80 ';
+                                } else {
+                                    classes += this.getContractorColor(task.contractor) + ' ';
                                 }
                                 
                                 if (dateStr === task.startDate && dateStr === task.endDate) classes += 'rounded-[2px] right-[2px] left-[2px]';
@@ -1125,7 +1128,7 @@
                 },
                 isTaskCompleted(task) { return task.isCompleted || task.isSuspended || task.endDate < this.todayStr; },
                 getContractorColor(contractor) {
-                    const fixedMap = { '和億': 'bg-teal-500', '富懋': 'bg-green-700', '明辰': 'bg-rose-500', '明凱': 'bg-blue-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600' };
+                    const fixedMap = { '和億': 'bg-teal-500', '富懋': 'bg-green-700', '明辰': 'bg-rose-500', '明凱': 'bg-blue-600', '金鐠鑼': 'bg-purple-600', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600', '宏鎝': 'bg-pink-400' };
                     let name = (contractor || '').trim(); return fixedMap[name] || 'bg-slate-400';
                 },
                 getLocations(task) { return task.locations || [{ phase: 'P2', building: task.building, floor: task.floor }]; },
@@ -1205,28 +1208,36 @@
                     let ey = date.getFullYear(); let em = String(date.getMonth() + 1).padStart(2, '0'); let ed = String(date.getDate()).padStart(2, '0');
                     return `${ey}-${em}-${ed}`;
                 },
-                
-                // 追加的方法：判斷今日是否已標記「當天完工」
                 hasTodayCompleted(task) {
                     return task.completedDays && task.completedDays.includes(this.todayStr);
                 },
-                
-                // 追加的方法：切換「當天完工」狀態
                 async toggleTodayComplete(task) {
                     if (!this.user) return;
                     let completedDays = task.completedDays ? [...task.completedDays] : [];
                     const idx = completedDays.indexOf(this.todayStr);
                     if (idx > -1) {
                         completedDays.splice(idx, 1); // 已經完工則取消
+                        try {
+                            await updateDoc(doc(db, 'tasks', task.id), { completedDays });
+                            this.updateLocalCache(task.id, { completedDays, showCompleteOptions: false });
+                        } catch (e) { alert("更新失敗"); }
                     } else {
                         completedDays.push(this.todayStr); // 標記今天為完工
+                        
+                        // 判斷是否為工進的最後一天，是的話直接轉為整個工項完工，自動跳到歷史紀錄
+                        if (this.todayStr >= task.endDate) {
+                            try {
+                                await updateDoc(doc(db, 'tasks', task.id), { completedDays, isCompleted: true, completedDate: this.todayStr });
+                                this.updateLocalCache(task.id, { completedDays, isCompleted: true, completedDate: this.todayStr, showCompleteOptions: false });
+                            } catch (e) { alert("更新失敗"); }
+                        } else {
+                            try {
+                                await updateDoc(doc(db, 'tasks', task.id), { completedDays });
+                                this.updateLocalCache(task.id, { completedDays, showCompleteOptions: false });
+                            } catch (e) { alert("更新失敗"); }
+                        }
                     }
-                    try {
-                        await updateDoc(doc(db, 'tasks', task.id), { completedDays });
-                        this.updateLocalCache(task.id, { completedDays, showCompleteOptions: false });
-                    } catch (e) { alert("更新失敗"); }
                 },
-
                 async toggleCompleteStatus(task) {
                     if (!this.user) return;
                     const next = !task.isCompleted;
