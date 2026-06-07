@@ -125,9 +125,9 @@
                                 <option v-for="m in config.managers" :value="m">{{ m }}</option>
                             </select>
                             <select v-model="filters.phase" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-light text-gray-700">
-                                <option value="">所有廠區 (P1/P2)</option>
-                                <option value="P1">P1</option>
-                                <option value="P2">P2</option>
+                                <option value="">所有廠區 (工區/廠區)</option>
+                                <option value="工區">工區</option>
+                                <option value="廠區">廠區</option>
                             </select>
                             <select v-model="filters.status" class="bg-gray-50 border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-light text-gray-700">
                                 <option value="all">所有狀態</option>
@@ -211,7 +211,7 @@
                                             </div>
                                             
                                             <div v-for="loc in getLocations(task)" class="flex items-center border-b border-gray-200 pb-1.5 mt-2 text-[15px] font-light justify-center text-center">
-                                                <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-500'">{{ loc.phase }}</span>
+                                                <span :class="loc.phase === '工區' ? 'text-orange-500' : 'text-blue-500'">{{ loc.phase }}</span>
                                                 <span class="text-gray-300 mx-2">|</span>
                                                 <span class="text-gray-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
                                             </div>
@@ -313,7 +313,7 @@
                                         </div>
                                         
                                         <div v-for="loc in getLocations(task)" class="flex items-center border-b border-gray-200 pb-1.5 mt-2 text-[15px] font-light justify-center text-center">
-                                            <span :class="loc.phase === 'P1' ? 'text-orange-500' : 'text-blue-500'">{{ loc.phase }}</span>
+                                            <span :class="loc.phase === '工區' ? 'text-orange-500' : 'text-blue-500'">{{ loc.phase }}</span>
                                             <span class="text-gray-300 mx-2">|</span>
                                             <span class="text-gray-700">{{ loc.building }} {{ loc.floor !== '無' ? loc.floor : '' }}</span>
                                         </div>
@@ -448,15 +448,15 @@
                             <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
                                 <div class="flex space-x-6">
                                     <label class="flex items-center text-sm font-bold text-gray-700 cursor-pointer">
-                                        <input type="radio" v-model="loc.phase" value="P1" class="mr-2 w-4 h-4 accent-amber-500"> P1
+                                        <input type="radio" v-model="loc.phase" value="工區" class="mr-2 w-4 h-4 accent-amber-500"> 工區
                                     </label>
                                     <label class="flex items-center text-sm font-bold text-gray-700 cursor-pointer">
-                                        <input type="radio" v-model="loc.phase" value="P2" class="mr-2 w-4 h-4 accent-blue-600"> P2
+                                        <input type="radio" v-model="loc.phase" value="廠區" class="mr-2 w-4 h-4 accent-blue-600"> 廠區
                                     </label>
                                 </div>
                                 <div class="flex gap-1">
                                     <button type="button" v-if="newTask.locations.length > 1" @click="newTask.locations.splice(index, 1)" class="w-7 h-7 flex items-center justify-center bg-red-50 text-red-500 rounded font-black hover:bg-red-100 transition-colors">－</button>
-                                    <button type="button" v-if="index === newTask.locations.length - 1" @click="newTask.locations.push({ phase: 'P2', building: 'FAB', floor: '' })" class="w-7 h-7 flex items-center justify-center bg-blue-100 text-blue-600 rounded font-black hover:bg-blue-200 transition-colors">＋</button>
+                                    <button type="button" v-if="index === newTask.locations.length - 1" @click="newTask.locations.push({ phase: '廠區', building: 'FAB', floor: '' })" class="w-7 h-7 flex items-center justify-center bg-blue-100 text-blue-600 rounded font-black hover:bg-blue-200 transition-colors">＋</button>
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-3">
@@ -613,7 +613,7 @@
                     filters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
                     activeFilters: { keyword: '', startDate: '', endDate: '', contractor: '', manager: '', phase: '', status: 'all' },
                     newTask: {
-                        startDate: todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
+                        startDate: todayStr, days: 1, locations: [{ phase: '廠區', building: 'FAB', floor: '' }], 
                         contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
                         mainCategory: '', remark: '', subItems: [], permits: [], completedDays: []
                     },
@@ -1136,7 +1136,7 @@
                     const fixedMap = { '和億': 'bg-teal-500', '富懋': 'bg-green-700', '明辰': 'bg-rose-500', '明凱': 'bg-blue-600', '金鐠鑼': 'bg-purple-600', '金鴻通': 'bg-yellow-400', '領鋒': 'bg-cyan-600', '寰霈': 'bg-indigo-600', '宏鎝': 'bg-pink-400','常祐': 'bg-orange-400' };
                     let name = (contractor || '').trim(); return fixedMap[name] || 'bg-slate-400';
                 },
-                getLocations(task) { return task.locations || [{ phase: 'P2', building: task.building, floor: task.floor }]; },
+                getLocations(task) { return task.locations || [{ phase: '廠區', building: task.building, floor: task.floor }]; },
                 expandHistory() {
                     this.historyVisibleLimit += 10;
                     if (this.completedTasks.length < this.historyVisibleLimit) {
@@ -1163,7 +1163,7 @@
                 openNewModal() {
                     this.editingTaskId = null;
                     this.newTask = {
-                        startDate: this.todayStr, days: 1, locations: [{ phase: 'P2', building: 'FAB', floor: '' }], 
+                        startDate: this.todayStr, days: 1, locations: [{ phase: '廠區', building: 'FAB', floor: '' }], 
                         contractor: '', managers: [''], includeSaturday: false, includeSunday: false,
                         mainCategory: '', remark: '', subItems: [], permits: [], completedDays: []
                     };
@@ -1173,7 +1173,7 @@
                     this.editingTaskId = task.id;
                     this.newTask = { 
                         ...task, 
-                        locations: task.locations && task.locations.length > 0 ? JSON.parse(JSON.stringify(task.locations)) : [{ phase: 'P2', building: task.building, floor: task.floor }],
+                        locations: task.locations && task.locations.length > 0 ? JSON.parse(JSON.stringify(task.locations)) : [{ phase: '廠區', building: task.building, floor: task.floor }],
                         managers: task.managers && task.managers.length > 0 ? [...task.managers] : [''],
                         remark: task.remark || '', permits: task.permits ? [...task.permits] : [],
                         completedDays: task.completedDays ? [...task.completedDays] : []
@@ -1185,7 +1185,7 @@
                     this.newTask = {
                         startDate: task.startDate,
                         days: task.days,
-                        locations: task.locations && task.locations.length > 0 ? JSON.parse(JSON.stringify(task.locations)) : [{ phase: 'P2', building: task.building, floor: task.floor }],
+                        locations: task.locations && task.locations.length > 0 ? JSON.parse(JSON.stringify(task.locations)) : [{ phase: '廠區', building: task.building, floor: task.floor }],
                         contractor: task.contractor || '',
                         managers: task.managers && task.managers.length > 0 ? [...task.managers] : [''],
                         includeSaturday: task.includeSaturday || false,
