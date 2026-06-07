@@ -995,29 +995,9 @@
                     if (this.filteredTasks.length === 0) return alert('目前沒有篩選出任何資料可供匯出！');
                     let exportList = [...this.filteredTasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
                     
-                    let sheet1Data = [
-                        ['工項狀態', '開始日期', '結束日期', '工作天', '包商/班組', '管理職', '廠區', '大樓', '樓層', '主要工項', '施作細項', '備註', '應辦申請單', '停工原因']
-                    ];
-                    
-                    exportList.forEach(t => {
-                        let status = t.isSuspended ? '已停工' : ((t.isCompleted || this.isPast(t.endDate)) ? '已完工' : '進行中');
-                        let locs = this.getLocations(t);
-                        let phases = locs.map(l => l.phase).join('、');
-                        let buildings = locs.map(l => l.building).join('、');
-                        let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、');
-                        let remark = (t.remark || '').replace(/\n/g, ' ');
-                        let permits = (t.permits || []).join('、');
-                        let suspendReason = (t.suspendReason || '').replace(/\n/g, ' ');
-                        
-                        sheet1Data.push([
-                            status, t.startDate||'', t.endDate||'', t.days||1, t.contractor||'', 
-                            (t.managers||[]).join('、'), phases, buildings, floors, 
-                            t.mainCategory||'', (t.subItems||[]).join('、'), remark, permits, suspendReason
-                        ]);
-                    });
-
+                    // 依照圖檔欄位格式建立表頭
                     let sheet2Data = [
-                        ['日期', '星期', '包商/班組', '廠區', '大樓', '樓層', '主要工項', '施作細項', '備註', '應辦申請單']
+                        ['日期', '星期', '包商/班組', '廠/工', '大樓', '樓層', '施作細項', '備註']
                     ];
                     
                     let dailyMap = {};
@@ -1051,8 +1031,15 @@
                     let allDates = Object.keys(dailyMap).sort();
                     const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
                     
-                    allDates.forEach(dateStr => {
+                    let merges = [];
+                    let currentRow = 1; // 第一列為表頭，資料從 index 1 開始
+                    let rowStyles = {};
+                    let cellColors = {};
+                    
+                    allDates.forEach((dateStr, dayIndex) => {
                         let tasksOnDay = dailyMap[dateStr];
+                        
+                        // 將每天的項目依照包商排序，看起來較整齊
                         tasksOnDay.sort((a, b) => {
                             let cA = a.contractor || '';
                             let cB = b.contractor || '';
@@ -1063,11 +1050,19 @@
                         let dateDisplay = `${dObj.getMonth() + 1}月${dObj.getDate()}日`;
                         let dayDisplay = dayNames[dObj.getDay()];
                         
+                        let startRow = currentRow;
+                        // 依照圖檔設計，同一天的背景色要一致，且天數區塊交替 (白、灰、白、灰)
+                        let bgColor = dayIndex % 2 === 0 ? "FFFFFF" : "F2F2F2";
+                        
                         tasksOnDay.forEach((t, idx) => {
                             let locs = this.getLocations(t);
-                            let phases = locs.map(l => l.phase).join('、');
-                            let buildings = locs.map(l => l.building).join('、');
-                            let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('、');
+                            // 轉換「廠區」為「廠」，「工區」為「工」
+                            let phases = locs.map(l => l.phase === '廠區' ? '廠' : '工').join('\n');
+                            let buildings = locs.map(l => l.building).join('\n');
+                            let floors = locs.map(l => l.floor !== '無' ? l.floor : '').filter(f => f).join('\n');
+                            
+                            // 施作細項：若有細項則合併，否則顯示主要工項
+                            let subItems = t.subItems && t.subItems.length > 0 ? t.subItems.join('、') : (t.mainCategory || '');
                             let remark = (t.remark || '').replace(/\n/g, ' ');
                             
                             sheet2Data.push([
@@ -1077,59 +1072,85 @@
                                 phases,
                                 buildings,
                                 floors,
-                                t.mainCategory || '',
-                                (t.subItems || []).join('、'),
-                                remark,
-                                (t.permits || []).join('、')
+                                subItems,
+                                remark
                             ]);
+                            
+                            rowStyles[currentRow] = bgColor;
+                            
+                            // 圖檔中「廠」字為紅色
+                            if (phases.includes('廠')) {
+                                cellColors[`${currentRow},3`] = "FF0000"; // Column 3 是 '廠/工'
+                            }
+                            
+                            currentRow++;
                         });
+                        
+                        let endRow = currentRow - 1;
+                        // 若同一天有多筆資料，合併「日期」和「星期」欄位
+                        if (endRow > startRow) {
+                            merges.push({ s: { r: startRow, c: 0 }, e: { r: endRow, c: 0 } });
+                            merges.push({ s: { r: startRow, c: 1 }, e: { r: endRow, c: 1 } });
+                        }
                     });
 
                     const wb = XLSX.utils.book_new();
-                    const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
                     const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+                    ws2['!merges'] = merges;
 
+                    // 儲存格外框樣式
+                    const borderStyle = {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    };
+
+                    // 表頭樣式
                     const headerStyle = {
                         font: { bold: true, color: { rgb: "000000" } },
                         fill: { fgColor: { rgb: "D9D9D9" } },
-                        alignment: { horizontal: "left", vertical: "center" }
-                    };
-                    const dateColStyle = {
-                        font: { bold: true, color: { rgb: "000000" } },
-                        fill: { fgColor: { rgb: "F2F2F2" } },
-                        alignment: { horizontal: "left", vertical: "top" }
-                    };
-                    const dataStyle = {
-                        font: { color: { rgb: "000000" } },
-                        alignment: { horizontal: "left", vertical: "top", wrapText: true }
+                        alignment: { horizontal: "left", vertical: "center" },
+                        border: borderStyle
                     };
 
-                    let range1 = XLSX.utils.decode_range(ws1['!ref']);
-                    for (let R = range1.s.r; R <= range1.e.r; ++R) {
-                        for (let C = range1.s.c; C <= range1.e.c; ++C) {
-                            let cellRef = XLSX.utils.encode_cell({ r: R, c: C });
-                            if (!ws1[cellRef]) ws1[cellRef] = { t: 's', v: '' };
-                            ws1[cellRef].s = (R === 0) ? headerStyle : dataStyle;
-                        }
-                    }
-                    ws1['!cols'] = [{wch:10},{wch:12},{wch:12},{wch:8},{wch:12},{wch:15},{wch:10},{wch:10},{wch:10},{wch:15},{wch:25},{wch:30},{wch:20},{wch:15}];
-
+                    // 為所有儲存格套用樣式
                     let range2 = XLSX.utils.decode_range(ws2['!ref']);
                     for (let R = range2.s.r; R <= range2.e.r; ++R) {
                         for (let C = range2.s.c; C <= range2.e.c; ++C) {
                             let cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+                            // 初始化合併區塊內的空儲存格，避免外框斷線
                             if (!ws2[cellRef]) ws2[cellRef] = { t: 's', v: '' };
-                            if (R === 0) ws2[cellRef].s = headerStyle;
-                            else if (C === 0 || C === 1) ws2[cellRef].s = dateColStyle;
-                            else ws2[cellRef].s = dataStyle;
+
+                            if (R === 0) {
+                                ws2[cellRef].s = headerStyle;
+                            } else {
+                                let isRed = cellColors[`${R},${C}`] === "FF0000";
+                                ws2[cellRef].s = {
+                                    font: { color: { rgb: isRed ? "FF0000" : "000000" } },
+                                    fill: { fgColor: { rgb: rowStyles[R] || "FFFFFF" } },
+                                    alignment: { horizontal: "left", vertical: "top", wrapText: true },
+                                    border: borderStyle
+                                };
+                            }
                         }
                     }
-                    ws2['!cols'] = [{wch:12},{wch:6},{wch:15},{wch:8},{wch:8},{wch:8},{wch:15},{wch:25},{wch:35},{wch:20}];
-
-                    XLSX.utils.book_append_sheet(wb, ws1, "原始清單");
-                    XLSX.utils.book_append_sheet(wb, ws2, "每日排程");
                     
-                    XLSX.writeFile(wb, `工程紀錄匯出_${this.todayStr}.xlsx`);
+                    // 設定欄位寬度
+                    ws2['!cols'] = [
+                        {wch:10}, // 日期
+                        {wch:6},  // 星期
+                        {wch:12}, // 包商/班組
+                        {wch:8},  // 廠/工
+                        {wch:10}, // 大樓
+                        {wch:10}, // 樓層
+                        {wch:25}, // 施作細項
+                        {wch:40}  // 備註
+                    ];
+
+                    // 將這張精準排版的表加入 Excel 並匯出
+                    XLSX.utils.book_append_sheet(wb, ws2, "每日排程");
+                    XLSX.writeFile(wb, `現場排程表_${this.todayStr}.xlsx`);
                 },
                 isTaskCompleted(task) { return task.isCompleted || task.isSuspended || task.endDate < this.todayStr; },
                 getContractorColor(contractor) {
